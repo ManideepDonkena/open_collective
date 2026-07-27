@@ -15,8 +15,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["PySide6>=6.5"]           # interactive front end (python run_gui.py)
-export = ["h5py>=3.8", "pyyaml>=6.0"]  # .h5 trajectory export / .yaml configs
+gui = ["PySide6>=6.5", "pillow>=9.0"]     # interactive front end + GIF/screenshot
+export = ["h5py>=3.8", "pyyaml>=6.0"]     # .h5 trajectory export / .yaml configs
+video = ["imageio>=2.30", "imageio-ffmpeg>=0.4"]  # MP4 recording
+analysis = ["pandas>=1.5"]                # to_dataframe / load_measurements
 dev = ["pytest>=7.0"]
 
 [project.scripts]

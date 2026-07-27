@@ -206,6 +206,34 @@ def export_trajectory(history: dict, path) -> Path:
 
 
 # --------------------------------------------------------------------------
+# pandas convenience (optional dependency)
+# --------------------------------------------------------------------------
+
+def to_dataframe(history: dict):
+    """Every scalar time series in `history` as a pandas DataFrame (one row/frame).
+
+    Needs pandas (`pip install pandas`). Handy for notebook analysis:
+        df = manager.to_dataframe(hist); df.plot(x="t", y="polar_order")
+    """
+    import pandas as pd
+    cols = {k: np.asarray(v) for k, v in history.items()
+            if np.asarray(v).ndim == 1}
+    return pd.DataFrame(cols)
+
+
+def load_measurements(path):
+    """Read a measurements CSV (written by `export_measurements`) into a DataFrame."""
+    import pandas as pd
+    return pd.read_csv(path)
+
+
+def sweep_to_dataframe(rows):
+    """A `parameter_sweep` result (list of dicts) as a DataFrame."""
+    import pandas as pd
+    return pd.DataFrame(rows)
+
+
+# --------------------------------------------------------------------------
 # parameter sweep / batch
 # --------------------------------------------------------------------------
 

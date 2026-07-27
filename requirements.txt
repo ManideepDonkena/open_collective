@@ -3,8 +3,13 @@ scipy>=1.10
 matplotlib>=3.7
 
 # Optional — the experiment manager falls back to JSON/CSV without these:
-#   pyyaml>=6.0   # only for .yaml experiment configs (save_config/load_config)
-#   h5py>=3.8     # only for .h5 trajectory export (export_trajectory)
+#   pyyaml>=6.0             # .yaml experiment configs (save_config/load_config)
+#   h5py>=3.8               # .h5 trajectory export (export_trajectory)
+#   pandas>=1.5             # manager.to_dataframe / load_measurements
 
 # Optional — the interactive GUI (python run_gui.py):
 #   PySide6>=6.5
+#   pillow>=9.0             # GIF export + screenshots
+#   imageio, imageio-ffmpeg # MP4 recording
+
+# The launcher (python start.py) installs all of the above automatically.

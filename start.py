@@ -53,7 +53,8 @@ def has_everything(py: Path) -> bool:
     """True if the app's pieces are already installed in the workspace."""
     check = subprocess.run(
         [str(py), "-c",
-         "import PySide6, numpy, scipy, matplotlib, PIL, yaml, h5py"],
+         "import PySide6, numpy, scipy, matplotlib, PIL, yaml, h5py, imageio, "
+         "imageio_ffmpeg, pandas"],
         capture_output=True,
     )
     return check.returncode == 0
@@ -64,10 +65,12 @@ def install(py: Path):
     print("This can take a few minutes. Please wait.\n")
     _run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
     # core (numpy/scipy/matplotlib) + GUI (PySide6) + pictures/animation (pillow)
-    # + saving formats (pyyaml for configs, h5py for large trajectory files)
+    # + saving formats (pyyaml configs, h5py trajectories) + video (imageio +
+    # imageio-ffmpeg for MP4) + analysis (pandas)
     _run([str(py), "-m", "pip", "install",
           "-r", str(HERE / "requirements.txt"),
-          "PySide6", "pillow", "pyyaml", "h5py"])
+          "PySide6", "pillow", "pyyaml", "h5py",
+          "imageio", "imageio-ffmpeg", "pandas"])
 
 
 def launch(py: Path) -> int:

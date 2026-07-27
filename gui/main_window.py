@@ -273,7 +273,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ("Screenshot…", self._screenshot), (self.rec_btn, self._toggle_record),
             ("Export metrics…", self._export_metrics), ("Export trajectory…", self._export_traj),
             ("Plot metrics…", self._plot_metrics), ("Sweep…", self._sweep_dialog),
-            ("Save GIF…", self._save_gif),
+            ("Save GIF…", self._save_gif), ("Save MP4…", self._save_mp4),
         ]
         for i, (item, slot) in enumerate(buttons):
             btn = item if isinstance(item, QtWidgets.QPushButton) else QtWidgets.QPushButton(item)
@@ -613,10 +613,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(f"Exported trajectory -> {path}", 4000)
 
     def _save_gif(self):
+        opts = self._ask_recording_opts("GIF")
+        if not opts:
+            return
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Save GIF", "results/animation.gif", "GIF (*.gif)")
         if path:
-            ok, msg = self._do_save_gif(path)
+            ok, msg = self._do_save_gif(path, opts["frames"], opts["fps"])
             (self.statusBar().showMessage if ok else self._warn)(
                 f"Saved GIF -> {path}" if ok else msg)
 
@@ -632,6 +635,66 @@ class MainWindow(QtWidgets.QMainWindow):
             imgs.append(self._grab_pil(Image))
         imgs[0].save(path, save_all=True, append_images=imgs[1:],
                      duration=int(1000 / fps), loop=0)
+        return True, path
+
+    #: named MP4 quality presets -> imageio ffmpeg quality (0..10, higher = better).
+    _MP4_QUALITY = {"Low (small file)": 3, "Medium": 5, "High": 8}
+
+    def _ask_recording_opts(self, kind):
+        """Small modal dialog for length / fps / (MP4) quality. Returns dict or None."""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle(f"{kind} settings")
+        form = QtWidgets.QFormLayout(dlg)
+        frames = QtWidgets.QSpinBox(); frames.setRange(5, 3000); frames.setValue(120)
+        fps = QtWidgets.QSpinBox(); fps.setRange(1, 60)
+        fps.setValue(25 if kind == "GIF" else 30)
+        q_cb = None
+        form.addRow("length (frames)", frames)
+        form.addRow("frames per second", fps)
+        if kind == "MP4":
+            q_cb = QtWidgets.QComboBox(); q_cb.addItems(list(self._MP4_QUALITY))
+            q_cb.setCurrentText("Low (small file)")     # default to a smaller file
+            form.addRow("quality", q_cb)
+        bb = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QtWidgets.QDialog.Accepted:
+            return None
+        out = {"frames": frames.value(), "fps": fps.value()}
+        if q_cb is not None:
+            out["quality"] = self._MP4_QUALITY[q_cb.currentText()]
+        return out
+
+    def _save_mp4(self):
+        opts = self._ask_recording_opts("MP4")
+        if not opts:
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save MP4", "results/animation.mp4", "MP4 (*.mp4)")
+        if path:
+            ok, msg = self._do_save_mp4(path, opts["frames"], opts["fps"],
+                                        opts["quality"])
+            (self.statusBar().showMessage if ok else self._warn)(
+                f"Saved MP4 -> {path}" if ok else msg)
+
+    def _do_save_mp4(self, path, frames=120, fps=30, quality=3):
+        """Step the sim `frames` times into an MP4. `quality` is 0..10 (lower =
+        smaller file / lower quality)."""
+        try:
+            import imageio.v2 as imageio
+            from PIL import Image
+        except Exception:
+            return False, "imageio not installed (pip install imageio imageio-ffmpeg)."
+        try:
+            writer = imageio.get_writer(str(path), fps=fps, quality=quality,
+                                        macro_block_size=None)
+        except Exception as e:                       # usually a missing ffmpeg backend
+            return False, f"Could not open the video writer: {e}"
+        for _ in range(frames):
+            self._tick()
+            writer.append_data(np.asarray(self._grab_pil(Image)))
+        writer.close()
         return True, path
 
     def _grab_pil(self, Image):

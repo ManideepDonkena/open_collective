@@ -204,6 +204,15 @@ def _check_experiment_manager(win, out):
     else:
         print(f"  SKIP  GIF ({msg})")
 
+    # 4b. MP4 video (skips gracefully if imageio/ffmpeg absent)
+    okm, msgm = win._do_save_mp4(out / "gui_anim.mp4", frames=10, fps=20)
+    mp4 = out / "gui_anim.mp4"
+    if okm:
+        assert mp4.exists() and mp4.stat().st_size > 0
+        print(f"  PASS  MP4 written -> {mp4.name} ({mp4.stat().st_size} bytes)")
+    else:
+        print(f"  SKIP  MP4 ({msgm})")
+
     # 5. plot the recorded metrics to an image
     plot = out / "gui_plot.png"
     assert win._do_plot_metrics(plot), "plotting recorded metrics failed"

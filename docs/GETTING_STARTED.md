@@ -171,7 +171,9 @@ The picture of the birds is on the **left**. The buttons are on the **right**.
   **Plot metrics** opens charts of the recorded numbers over time.
   **Sweep** re-runs the experiment while one setting changes and plots the result
   (e.g. how order changes as noise goes up).
-  **Screenshot** saves a picture, and **Save GIF** saves a short animation.
+  **Screenshot** saves a picture. **Save GIF** and **Save MP4** save a short
+  animation — for MP4 you pick length, frames-per-second, and quality (Low makes a
+  small file, High makes a sharper, larger one).
 - **View (2D / 3D)**: switch the canvas between flat 2D and a rotatable 3D view.
 - **Move around**: **scroll** to zoom; **drag** moves the view in 2D and **rotates**
   it in 3D.

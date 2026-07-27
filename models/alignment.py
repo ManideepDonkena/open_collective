@@ -56,26 +56,51 @@ class VicsekModel(CollectiveModel):
     cohesive = False
 
     def __init__(self, boundary, r_max=1.0, eta=0.2, v0=0.5, r_min=0.0,
-                 topological=False, k=7, rng=None):
+                 topological=False, k=7, fast=False, rng=None):
         super().__init__(boundary, rng)
         self.r_max, self.r_min, self.eta, self.v0 = r_max, r_min, eta, v0
         self.topological, self.k = topological, k
+        #: fast=True replaces the per-agent Python averaging loop with a single
+        #: sparse matrix product (same result up to float round-off, much faster
+        #: for large N). Default False so published-table numerics are unchanged.
+        self.fast = fast
 
     def _neighbors(self, state):
         if self.topological:
             return topological_neighbors(state.positions, self.boundary, self.k)
         return metric_neighbors(state.positions, self.boundary, self.r_max, self.r_min)
 
+    @staticmethod
+    def _mean_headings_sparse(neigh, h):
+        """Mean neighbour heading per agent via one sparse matmul; keeps h[i]
+        where an agent has no neighbours. Vectorised equivalent of the loop."""
+        from scipy.sparse import csr_matrix
+        n = len(h)
+        lens = np.fromiter((len(c) for c in neigh), dtype=int, count=n)
+        total = int(lens.sum())
+        new_h = h.copy()
+        if total:
+            rows = np.repeat(np.arange(n), lens)
+            cols = np.concatenate([c for c in neigh if len(c)])
+            A = csr_matrix((np.ones(total), (rows, cols)), shape=(n, n))
+            S = np.asarray(A @ h)                    # (n, dim) sum of neighbour headings
+            mask = lens > 0
+            new_h[mask] = S[mask] / lens[mask, None]
+        return new_h
+
     def step(self, state: State, dt: float) -> State:
         s = state.copy()
         neigh = self._neighbors(s)
         h = s.headings
-        new_h = np.empty_like(h)
-        for i, cand in enumerate(neigh):
-            if len(cand) == 0:
-                new_h[i] = h[i]              # isolated -> no signal at all
-            else:
-                new_h[i] = h[cand].mean(axis=0)
+        if self.fast:
+            new_h = self._mean_headings_sparse(neigh, h)
+        else:
+            new_h = np.empty_like(h)
+            for i, cand in enumerate(neigh):
+                if len(cand) == 0:
+                    new_h[i] = h[i]         # isolated -> no signal at all
+                else:
+                    new_h[i] = h[cand].mean(axis=0)
         noise = self.eta * _random_unit(self.rng, s.n, s.dim)
         new_h = _normalize(new_h + noise)
         s.velocities = self.v0 * new_h

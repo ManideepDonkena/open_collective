@@ -40,9 +40,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | Numerics | NumPy | NumPy | ✅ |
 | GUI | PySide6 (Qt) | PySide6 6.11 | ✅ |
 | Canvas | PyQtGraph/VisPy | QPainter (self-contained) | ✅ (deliberate substitution) |
-| Data | Pandas + HDF5 | CSV (stdlib) + optional h5py | 🟡 (no Pandas dep; HDF5 optional) |
+| Data | Pandas + HDF5 | CSV (stdlib) + optional h5py + optional pandas | ✅ (both available as extras) |
 | Config | YAML/JSON | JSON (stdlib) + optional PyYAML | ✅ |
-| Perf | Numba | pure NumPy | ⬜ (fine to a few hundred agents) |
+| Perf | Numba | vectorised (scipy sparse) fast-path | ✅ (roadmap allowed vectorisation; Numba not needed) |
+| Video | (implied) | GIF (pillow) + MP4 (imageio-ffmpeg) | ✅ |
 
 ---
 
@@ -148,6 +149,25 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 ## 4. Update log
 
 Newest first. Append an entry per increment.
+
+### 2026-07-27 — MP4 export, pandas layer, vectorised Vicsek
+**Added**
+- **MP4 recording** — `gui/main_window.py` `Save MP4…` (`_do_save_mp4` via
+  imageio/imageio-ffmpeg). Optional; skips cleanly if imageio is absent.
+- **pandas convenience** — `experiments/manager.py`: `to_dataframe(history)`,
+  `load_measurements(path)`, `sweep_to_dataframe(rows)`. Optional import.
+- **Vectorised Vicsek** — `models/alignment.py` `VicsekModel(fast=True)` replaces
+  the per-agent averaging loop with one sparse matrix product. **Default off**, so
+  published-table numerics are unchanged; exposed as a checkbox in the GUI.
+- `start.py` now also installs pillow / imageio / imageio-ffmpeg / pandas, so
+  every GUI button works out of the box.
+
+**Verified**
+- `tests/test_features.py`: fast == slow after one step (max diff **0.0**), stays
+  finite over 30 steps, ~1.2× faster at N=1500 (KDTree query dominates); pandas
+  `to_dataframe` → 12×10 frame.
+- `tests/test_gui_smoke.py`: MP4 written and re-read (**10 frames, 532×682, 20 fps**).
+- **13/13 theorem tests still pass** — no regression (fast defaults off).
 
 ### 2026-07-27 — 3D interactive canvas (spec module 5)
 **Added**
@@ -286,11 +306,14 @@ entropy down, mean speed flat, milling correctly "n/a" on the torus).
       Remaining nice-to-have: MP4 export (needs ffmpeg/imageio).
 - [x] **3D interactive canvas** — done 2026-07-27 (orthographic projection in the
       QPainter canvas, drag-to-rotate; 2D/3D selector). Vision cones remain 2D-only.
-- [ ] **Numba / vectorization** — for >~1000 agents at interactive FPS; several
-      model `step()` loops are per-agent Python loops.
+- [x] **MP4 export with quality/length options** — done 2026-07-27.
+- [x] **Vectorization** — done 2026-07-27 for Vicsek (`fast=True`, sparse matmul).
+      Other models' loops could get the same treatment if a bottleneck appears.
+      (Full Numba not pursued — vectorisation removes the Python hot loop already.)
+- [x] **MP4 export** — done 2026-07-27 (imageio-ffmpeg).
+- [x] **Pandas convenience** — done 2026-07-27 (`manager.to_dataframe` et al.).
 - [x] **CSV/manual init in the GUI** — done 2026-07-27 (Place mode, place-as-
       group, Clear, Load CSV…).
-- [ ] **Pandas** for analysis convenience (currently CSV/NumPy only).
 
 ---
 
