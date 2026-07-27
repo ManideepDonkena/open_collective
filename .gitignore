@@ -1,1 +1,37 @@
-/.venv
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Editors / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Generated outputs ---
+# results/ keeps hand-curated reference figures (fig1_*, viz3d_*) that the docs
+# embed; everything below is regenerable by the demo / smoke test / GUI and is
+# NOT tracked.
+results/demo_*
+results/init_snapshot.csv
+results/gui_*.png

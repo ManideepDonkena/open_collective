@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-collective"
+version = "0.1.0"
+description = "Collective-motion models with boundary conditions as a first-class, swappable object; the BirdFlockLab interactive platform."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.5"]           # interactive front end (python run_gui.py)
+export = ["h5py>=3.8", "pyyaml>=6.0"]  # .h5 trajectory export / .yaml configs
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+birdflocklab-gui = "gui.app:main"
+
+# Flat layout: the packages live at the repo root, so list them explicitly
+# (auto-discovery refuses a multi-package flat layout).
+[tool.setuptools]
+packages = ["core", "models", "experiments", "gui", "Uav"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# After `pip install -e .` these packages are importable everywhere, so the
+# `sys.path.insert(...)` bootstraps in the scripts become unnecessary (they are
+# kept for now so the scripts also run without installing).
