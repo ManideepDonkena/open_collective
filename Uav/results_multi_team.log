@@ -1,0 +1,65 @@
+========================================================================================================
+TEST 1 -- LEADER LOSS under turbulence. Does each team hold together?
+3 teams x 8 drones, 3D open airspace, dt=0.05, t=400s, leader lost at t=30s,
+turbulence=0.35 (per-drone, uncorrelated), seeds=[0, 1]
+========================================================================================================
+alignment rule                  theorem?   R_g growth  integrity  M_team     S  min_sep   verdict
+--------------------------------------------------------------------------------------------------------
+swarm_sim.py rule (b=1, norm)   no              1.01x       0.94    1.00  1.00     2.61   HOLDS
+b=1.0, CS sum (unnorm)          no             30.83x       0.17    0.45  0.98     2.52   *** SCATTERED ***
+b=0.5, CS sum (threshold)       yes             1.02x       1.00    1.00  1.00     2.53   HOLDS
+b=0.4, CS sum (inside)          yes             1.01x       1.00    1.00  1.00     2.53   HOLDS
+--------------------------------------------------------------------------------------------------------
+min_sep = WORST separation over the whole trajectory and both seeds, vs
+a 1.5 m floor. A constraint, not a score: breach it and the arm has
+failed however good the rest of its row looks.
+
+The beta=1 CS SUM scatters: R_g growth ~31x, integrity 0.17 -- the team is
+gone. The other three hold at ~1.01x. Note WHICH two survive and why they
+are not the same reason: beta<=0.5 survives by theorem; the current
+swarm_sim.py rule survives because normalising keeps the coupling strong
+at any range. Same column, different guarantees.
+
+RUN LENGTH IS LOAD-BEARING HERE. At t=120s every arm scored 1.01x and this
+table said 'all safe'. Dispersal is a RATE: the beta=1 leak needed ~400s of
+flight to show itself. A short sortie in sim is not evidence of a safe one.
+
+========================================================================================================
+TEST 2 -- GUST / STRAGGLER. One drone blown D m out of formation, after
+          leader loss. Does its velocity re-converge, or is it gone?
+          (no turbulence: one deterministic gust, t -> 600s)
+========================================================================================================
+alignment rule                  theorem?    D (m)  gap t=100s  gap t=600s   outcome
+--------------------------------------------------------------------------------------------------------
+swarm_sim.py rule (b=1, norm)   no             20        22.4        22.3   bounded (holds station)
+swarm_sim.py rule (b=1, norm)   no             60        62.5        62.5   bounded (holds station)
+swarm_sim.py rule (b=1, norm)   no            120       122.5       122.5   bounded (holds station)
+--------------------------------------------------------------------------------------------------------
+b=1.0, CS sum (unnorm)          no             20       127.4       547.7   *** LOST (gap still growing)
+b=1.0, CS sum (unnorm)          no             60       251.5      1201.8   *** LOST (gap still growing)
+b=1.0, CS sum (unnorm)          no            120       319.1      1407.5   *** LOST (gap still growing)
+--------------------------------------------------------------------------------------------------------
+b=0.5, CS sum (threshold)       yes            20        22.8        22.4   bounded (holds station)
+b=0.5, CS sum (threshold)       yes            60        65.1        64.0   bounded (holds station)
+b=0.5, CS sum (threshold)       yes           120       128.8       126.8   bounded (holds station)
+--------------------------------------------------------------------------------------------------------
+b=0.4, CS sum (inside)          yes            20        22.4        22.2   bounded (holds station)
+b=0.4, CS sum (inside)          yes            60        63.0        62.5   bounded (holds station)
+b=0.4, CS sum (inside)          yes           120       124.1       123.3   bounded (holds station)
+--------------------------------------------------------------------------------------------------------
+The normalisation is what saves the CURRENT code: a lone straggler's only
+neighbours are its own team, and a weighted average gives them full weight
+at any distance, so its velocity re-converges. Sound -- but by luck, not
+by theorem.
+
+THE TRAP: unnormalising to get a 'real' Cucker-Smale sum while LEAVING
+beta=1 loses the drone outright. Half-adopting the theory is much worse
+than ignoring it. Unnormalise AND set beta <= 1/2 -- then the gap is
+bounded and the theorem, not luck, is why.
+
+CAVEAT, AND IT IS THE ONE THAT MATTERS OPERATIONALLY: no alignment rule
+RECOVERS the straggler. 22 m at t=100 is 22 m at t=600. Cucker-Smale gives
+velocity consensus and a bounded gap; it never promised to close one. If
+your CONOPS assumes a displaced drone rejoins its slot unaided, no beta
+delivers that -- you need the formation layer (a live leader) or a real
+attraction term.

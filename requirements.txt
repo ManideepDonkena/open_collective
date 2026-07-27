@@ -1,0 +1,7 @@
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7
+
+# Optional — the experiment manager falls back to JSON/CSV without these:
+#   pyyaml>=6.0   # only for .yaml experiment configs (save_config/load_config)
+#   h5py>=3.8     # only for .h5 trajectory export (export_trajectory)
