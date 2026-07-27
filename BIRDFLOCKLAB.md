@@ -30,7 +30,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | 4 | Parameter Control | ✅ | GUI exposes a **live slider per numeric constructor arg** of the selected model (introspected). Structural params (N, boundary, init) rebuild; others apply live. |
 | 5 | Visualization | 🟡 | Interactive 2D canvas: play/pause/step/reset, zoom/pan, trails, vision cones, neighbour links, group colours, live metrics. **3D interactive** not yet (offline 3D exists in `core/viz3d.py`). |
 | 6 | Measurement | ✅ | polarization, milling, angular momentum, cluster/fragment count, nn-distance, **density**, **heading_entropy**, **mean_speed**, + group-maintenance + consensus observables. |
-| 7 | Experiment Manager | 🟡 | `experiments/manager.py`: model registry, JSON/YAML config save/load, CSV/HDF5 export, parameter sweep. **Not yet** wired to GUI toolbar buttons; no video-record button. |
+| 7 | Experiment Manager | ✅ | `experiments/manager.py`: registry, JSON/YAML config save/load, CSV/HDF5 export, parameter sweep — **now wired into the GUI** (Save/Load config, Record, Export metrics/trajectory, Screenshot, Save GIF). A config saved from the GUI re-runs headless via `manager.run_experiment`. |
 
 ### Technology stack
 
@@ -149,6 +149,23 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 
 Newest first. Append an entry per increment.
 
+### 2026-07-27 — Experiment Manager wired into the GUI (spec module 7)
+**Added (in `gui/main_window.py`)**
+- **Experiment** panel: Save config… / Load config… / Screenshot… / ● Record /
+  Export metrics… / Export trajectory… / Save GIF….
+- `current_config()` / `apply_config()` — the GUI setup ⇄ a manager-compatible
+  config dict. A config saved from the GUI **re-runs headless** via
+  `manager.run_experiment` (reproducibility), using `GUI_TO_KEY`/`KEY_TO_GUI`.
+- Per-frame recording buffers (metrics + trajectory) consumed by
+  `manager.export_measurements` (CSV) and `manager.export_trajectory` (CSV/HDF5).
+- GIF capture via QPainter grab → Pillow (skips cleanly if Pillow absent).
+
+**Verified** (`tests/test_gui_smoke.py`, extended)
+- Config save → load → apply is **identical** to the original config.
+- The saved config runs via `manager.run_experiment` (500 frames).
+- Recording 26 frames then exporting metrics + trajectory writes non-empty CSVs.
+- GIF written & re-read: 8 frames, 532×682 → `results/gui_anim.gif`.
+
 ### 2026-07-27 — Interactive GUI (spec modules 4 & 5)
 **Added**
 - `gui/canvas.py` — `SimCanvas`, a QPainter renderer (agents + heading arrows,
@@ -205,9 +222,9 @@ Newest first. Append an entry per increment.
 
 - [ ] **"Mind-Flock" model** — needs the dynamics/definition from the user
       (closest existing model is `PerceptionQuantum`).
-- [ ] **Wire Experiment Manager into the GUI** — toolbar buttons for save/load
-      config, export CSV/HDF5, and record GIF/MP4 (backend already exists in
-      `experiments/manager.py` + `core/viz3d.py`).
+- [x] **Wire Experiment Manager into the GUI** — done 2026-07-27 (Save/Load
+      config, Export metrics/trajectory CSV·HDF5, Screenshot, Save GIF).
+      Remaining nice-to-have: MP4 export (needs ffmpeg/imageio).
 - [ ] **3D interactive canvas** — the offline `viz3d.py` is 3D; the live canvas
       is 2D. Options: VisPy/OpenGL, or a 2.5D projection in the QPainter canvas.
 - [ ] **Numba / vectorization** — for >~1000 agents at interactive FPS; several
@@ -224,5 +241,5 @@ Newest first. Append an entry per increment.
 |---|---|---|
 | Theorem suite | `tests/test_theorems.py` | 13/13 pass |
 | New features | `experiments/demo_new_features.py` | all sections pass |
-| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot written |
+| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF |
 | Live GUI | `run_gui.py` | pending `libxcb-cursor0` install on user's machine |

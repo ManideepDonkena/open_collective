@@ -128,6 +128,11 @@ The picture of the birds is on the **left**. The buttons are on the **right**.
   change happens right away, while it runs.
 - **Measurements**: live numbers (order, spread, groups, speed, and more) that
   update every frame.
+- **Experiment**: save your current setup to a file (**Save config**) and load
+  it back later (**Load config**) — the exact same run comes back. **● Record**
+  starts saving each frame; then **Export metrics** writes the numbers to a CSV
+  and **Export trajectory** writes every bird's path to a CSV or `.h5` file.
+  **Screenshot** saves a picture, and **Save GIF** saves a short animation.
 - **Move around**: **scroll** to zoom, **drag** to move the view.
 
 ---

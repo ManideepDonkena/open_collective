@@ -73,6 +73,55 @@ def main():
           f"{pix.width()}x{pix.height()})")
     print(f"\n{n_models}/{n_models} GUI models stepped cleanly.")
 
+    _check_experiment_manager(win, out)
+
+
+def _check_experiment_manager(win, out):
+    """Config round-trip + reproducibility, recording, exports, GIF."""
+    from experiments import manager
+
+    print("\n--- experiment manager integration ---")
+    win.model_cb.setCurrentText("Vicsek")
+    win.boundary_cb.setCurrentText("periodic")
+    win.N_sb.setValue(80)
+
+    # 1. config save -> load -> apply must reproduce the same config
+    cfg = win.current_config()
+    cpath = manager.save_config(cfg, out / "gui_config.json")
+    win.model_cb.setCurrentText("Boids")            # perturb the GUI
+    win.apply_config(manager.load_config(cpath))    # ...then restore from file
+    assert win.current_config() == cfg, "config round-trip changed the config"
+    print(f"  PASS  config round-trip identical -> {cpath}")
+
+    # 2. the saved config is runnable headless (reproducibility guarantee)
+    final, hist = manager.run_experiment(cfg)
+    assert "polar_order" in hist and len(hist["t"]) > 0
+    print(f"  PASS  saved config runs via manager.run_experiment "
+          f"({len(hist['t'])} frames)")
+
+    # 3. record a live run, then export metrics + trajectory
+    win.rec_btn.setChecked(True)
+    for _ in range(25):
+        win._tick()
+    win.rec_btn.setChecked(False)
+    h = win._history_dict()
+    assert h is not None and len(h["t"]) >= 25 and "trajectory" in h
+    mpath = manager.export_measurements(h, out / "gui_metrics.csv")
+    tpath = manager.export_trajectory(h, out / "gui_traj.csv")
+    assert mpath.stat().st_size > 0 and tpath.stat().st_size > 0
+    print(f"  PASS  recorded {len(h['t'])} frames -> {mpath.name}, {tpath.name}")
+
+    # 4. GIF capture (skips gracefully if Pillow is absent)
+    ok, msg = win._do_save_gif(out / "gui_anim.gif", frames=8, fps=20)
+    gif = out / "gui_anim.gif"
+    if ok:
+        assert gif.exists() and gif.stat().st_size > 0
+        print(f"  PASS  GIF written -> {gif.name} ({gif.stat().st_size} bytes)")
+    else:
+        print(f"  SKIP  GIF ({msg})")
+
+    print("\nexperiment manager integration OK.")
+
 
 if __name__ == "__main__":
     main()

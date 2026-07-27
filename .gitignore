@@ -34,4 +34,4 @@ Thumbs.db
 # NOT tracked.
 results/demo_*
 results/init_snapshot.csv
-results/gui_*.png
+results/gui_*

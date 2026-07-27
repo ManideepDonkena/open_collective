@@ -18,7 +18,7 @@ import inspect
 import time
 
 import numpy as np
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, Signal
 
 import core.init as cinit
@@ -26,6 +26,7 @@ from core.boundary import make_boundary
 from core.metrics import milling_order, summarize
 from core.neighbors import (metric_neighbors, topological_neighbors,
                             vision_cone_neighbors)
+from experiments import manager
 from models import (BoidsModel, CouzinModel, CuckerSmaleModel, DOrsognaModel,
                     KuramotoModel, MultiGroupFlock, OlfatiSaberModel,
                     PerceptionQuantum, SlowFastPerception, VicsekModel)
@@ -46,6 +47,21 @@ GUI_MODELS = {
     "SlowFast (PAPER_2)": SlowFastPerception,
     "Multi-group flock": MultiGroupFlock,
 }
+# GUI display label <-> experiments.manager registry key, so a config saved from
+# the GUI is directly runnable by manager.run_experiment (reproducibility).
+GUI_TO_KEY = {
+    "Vicsek": "Vicsek", "Kuramoto": "Kuramoto", "Boids": "Boids",
+    "Couzin": "Couzin", "Cucker-Smale": "CuckerSmale", "D'Orsogna": "DOrsogna",
+    "Olfati-Saber": "OlfatiSaber", "Perception (PAPER_1)": "Perception",
+    "SlowFast (PAPER_2)": "SlowFast", "Multi-group flock": "MultiGroupFlock",
+}
+KEY_TO_GUI = {v: k for k, v in GUI_TO_KEY.items()}
+
+# Numeric observables recorded per frame while "Record" is on (for CSV/HDF5 export).
+_RECORD_KEYS = ["polar_order", "radius_of_gyration", "nn_distance", "n_fragments",
+                "largest_cluster_frac", "mean_neighbors", "density",
+                "heading_entropy", "mean_speed", "milling"]
+
 _SKIP_PARAMS = {"self", "boundary", "rng", "groups"}
 _METRIC_ROWS = [
     ("t", "t"), ("polar_order", "polar order M"), ("milling", "milling"),
@@ -134,6 +150,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._fps = 0.0
         self._last_tick = time.perf_counter()
         self.param_widgets = {}      # name -> (widget, kind)
+        self._loading = False        # suppress resets while a config loads
+
+        # recording buffers (filled while "Record" is on; consumed by exports)
+        self.recording = False
+        self.rec_metrics = None      # dict[str, list] incl. "t"
+        self.rec_traj, self.rec_vel, self.rec_grp = [], [], []
 
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(33)   # ~30 fps
@@ -210,6 +232,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.param_form = QtWidgets.QFormLayout(self.param_box)
         pl.addWidget(self.param_box)
 
+        # --- experiment manager (config / export / capture) ---
+        exp = QtWidgets.QGroupBox("Experiment")
+        eg = QtWidgets.QGridLayout(exp)
+        self.rec_btn = QtWidgets.QPushButton("● Record"); self.rec_btn.setCheckable(True)
+        buttons = [
+            ("Save config…", self._save_config), ("Load config…", self._load_config),
+            ("Screenshot…", self._screenshot), (self.rec_btn, self._toggle_record),
+            ("Export metrics…", self._export_metrics), ("Export trajectory…", self._export_traj),
+            ("Save GIF…", self._save_gif),
+        ]
+        for i, (item, slot) in enumerate(buttons):
+            btn = item if isinstance(item, QtWidgets.QPushButton) else QtWidgets.QPushButton(item)
+            (btn.toggled if btn.isCheckable() else btn.clicked).connect(slot)
+            eg.addWidget(btn, i // 2, i % 2)
+        self.rec_status = QtWidgets.QLabel("not recording")
+        eg.addWidget(self.rec_status, (len(buttons) + 1) // 2, 0, 1, 2)
+        pl.addWidget(exp)
+
         # --- metrics ---
         met = QtWidgets.QGroupBox("Measurements")
         ml = QtWidgets.QFormLayout(met)
@@ -275,6 +315,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # -- build / reset ----------------------------------------------------
     def _reset(self, *_):
+        if self._loading:            # a config is being applied; rebuild once at the end
+            return
+        if self.recording:          # a fresh run invalidates the current recording
+            self.rec_btn.setChecked(False)
         kind = self.boundary_cb.currentText()
         L = float(self.L_sb.value())
         self.boundary = make_boundary(kind, L, 2)
@@ -329,8 +373,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self._fps = 0.9 * self._fps + 0.1 * (1.0 / dt_wall)
         self._last_tick = now
         self._refresh_canvas()
-        if self._steps % 3 == 0:
-            self._update_metrics()
+        # compute metrics every 3rd frame for display, but every frame while recording
+        if self.recording or self._steps % 3 == 0:
+            m = self._metrics_now()
+            self._set_metric_labels(m)
+            if self.recording:
+                self._record_step(m)
 
     def _neighbor_info(self):
         if not (self.canvas.show_links or self.canvas.show_cones):
@@ -356,13 +404,16 @@ class MainWindow(QtWidgets.QMainWindow):
                               self.boundary, self.state.internal.get("groups"),
                               neigh, vision)
 
-    def _update_metrics(self):
+    def _metrics_now(self):
         st, b = self.state, self.boundary
         s = summarize(st.positions, st.headings, b, self.r_link,
                       velocities=st.velocities)
         s["t"] = st.t
         s["milling"] = milling_order(st.positions, st.velocities, b)
         s["fps"] = self._fps
+        return s
+
+    def _set_metric_labels(self, s):
         for key, _ in _METRIC_ROWS:
             v = s.get(key)
             if isinstance(v, float) and not np.isfinite(v):
@@ -374,3 +425,177 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 txt = str(v)
             self.metric_labels[key].setText(txt)
+
+    def _update_metrics(self):
+        self._set_metric_labels(self._metrics_now())
+
+    # -- recording --------------------------------------------------------
+    def _toggle_record(self, on):
+        self.recording = on
+        if on:
+            self.rec_metrics = {k: [] for k in ["t"] + _RECORD_KEYS}
+            self.rec_traj, self.rec_vel, self.rec_grp = [], [], []
+            self._record_step(self._metrics_now())      # capture frame 0
+        self.rec_btn.setText("● Recording" if on else "● Record")
+        self._update_rec_status()
+
+    def _record_step(self, m):
+        for k in ["t"] + _RECORD_KEYS:
+            self.rec_metrics[k].append(float(m.get(k, np.nan)))
+        self.rec_traj.append(self.state.positions.copy())
+        self.rec_vel.append(self.state.velocities.copy())
+        g = self.state.internal.get("groups")
+        self.rec_grp.append(None if g is None else np.asarray(g).copy())
+        self._update_rec_status()
+
+    def _update_rec_status(self):
+        n = len(self.rec_metrics["t"]) if self.rec_metrics else 0
+        self.rec_status.setText(f"recording… {n} frames" if self.recording
+                                else (f"recorded {n} frames" if n else "not recording"))
+
+    def _history_dict(self):
+        if not self.rec_metrics or not self.rec_metrics["t"]:
+            return None
+        h = {k: np.asarray(v) for k, v in self.rec_metrics.items()}
+        if self.rec_traj:
+            h["trajectory"] = np.asarray(self.rec_traj)
+            h["velocity_trajectory"] = np.asarray(self.rec_vel)
+            if self.rec_grp and self.rec_grp[0] is not None:
+                h["group_trajectory"] = np.asarray(self.rec_grp)
+        return h
+
+    # -- config round-trip ------------------------------------------------
+    def current_config(self):
+        """The current GUI setup as a manager-compatible config dict.
+
+        The result is directly runnable headless via
+        `experiments.manager.run_experiment(cfg)` -- that is the reproducibility
+        guarantee: what you set up in the GUI is exactly what re-runs.
+        """
+        method = self.init_cb.currentText()
+        n = int(self.N_sb.value()); speed = float(self.speed_sb.value())
+        ng = int(self.groups_sb.value())
+        if method == "cluster":
+            init = {"method": "cluster", "n": n, "speed": speed,
+                    "n_clusters": max(1, ng), "aligned_within_cluster": True}
+        elif method == "ring":
+            init = {"method": "ring", "n": n, "speed": speed,
+                    "tangential": True, "n_groups": ng}
+        else:  # random / grid
+            init = {"method": method, "n": n, "speed": speed, "n_groups": ng}
+        return {
+            "seed": 0,
+            "boundary": {"kind": self.boundary_cb.currentText(),
+                         "L": float(self.L_sb.value()), "dim": 2},
+            "init": init,
+            "model": {"name": GUI_TO_KEY[self.model_cb.currentText()],
+                      "params": self._param_values()},
+            "run": {"steps": 500, "dt": float(self.dt_sb.value()),
+                    "r_link": self.r_link, "record_every": 1, "record_traj": True},
+        }
+
+    def apply_config(self, cfg):
+        """Set every control from a config dict, then rebuild once."""
+        self._loading = True
+        try:
+            b = cfg.get("boundary", {})
+            self.boundary_cb.setCurrentText(b.get("kind", "open"))
+            self.L_sb.setValue(float(b.get("L", 10.0)))
+            ic = dict(cfg.get("init", {}))
+            self.init_cb.setCurrentText(ic.get("method", "random"))
+            self.N_sb.setValue(int(ic.get("n", 150)))
+            self.groups_sb.setValue(int(ic.get("n_groups", ic.get("n_clusters", 1))))
+            self.speed_sb.setValue(float(ic.get("speed", 0.5)))
+            self.dt_sb.setValue(float(cfg.get("run", {}).get("dt", 0.05)))
+            key = cfg.get("model", {}).get("name", "Vicsek")
+            self.model_cb.setCurrentText(KEY_TO_GUI.get(key, self.model_cb.currentText()))
+            self._on_model_changed()   # rebuild sliders for this model (reset suppressed)
+        finally:
+            self._loading = False
+        for name, val in cfg.get("model", {}).get("params", {}).items():
+            if name in self.param_widgets:
+                w, kind = self.param_widgets[name]
+                if kind == "bool":
+                    w.setChecked(bool(val))
+                elif kind == "int":
+                    w.setValue(int(val))
+                else:
+                    w.set_value(float(val))
+        self._reset()
+
+    # -- button slots (thin wrappers around testable _do_* methods) -------
+    def _save_config(self):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save config", "results/config.json",
+            "Config (*.json *.yaml *.yml)")
+        if path:
+            manager.save_config(self.current_config(), path)
+            self.statusBar().showMessage(f"Saved config -> {path}", 4000)
+
+    def _load_config(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Load config", "results", "Config (*.json *.yaml *.yml)")
+        if path:
+            self.apply_config(manager.load_config(path))
+            self.statusBar().showMessage(f"Loaded config <- {path}", 4000)
+
+    def _screenshot(self):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save screenshot", "results/screenshot.png", "PNG (*.png)")
+        if path:
+            self.canvas.grab().save(path)
+            self.statusBar().showMessage(f"Saved screenshot -> {path}", 4000)
+
+    def _export_metrics(self):
+        h = self._history_dict()
+        if h is None:
+            return self._warn("Nothing recorded. Press ● Record, then run.")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export metrics", "results/metrics.csv", "CSV (*.csv)")
+        if path:
+            manager.export_measurements(h, path)
+            self.statusBar().showMessage(f"Exported metrics -> {path}", 4000)
+
+    def _export_traj(self):
+        h = self._history_dict()
+        if h is None or "trajectory" not in h:
+            return self._warn("Nothing recorded. Press ● Record, then run.")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export trajectory", "results/trajectory.csv",
+            "CSV (*.csv);;HDF5 (*.h5 *.hdf5)")
+        if path:
+            manager.export_trajectory(h, path)
+            self.statusBar().showMessage(f"Exported trajectory -> {path}", 4000)
+
+    def _save_gif(self):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save GIF", "results/animation.gif", "GIF (*.gif)")
+        if path:
+            ok, msg = self._do_save_gif(path)
+            (self.statusBar().showMessage if ok else self._warn)(
+                f"Saved GIF -> {path}" if ok else msg)
+
+    def _do_save_gif(self, path, frames=60, fps=25):
+        """Step the sim `frames` times, grabbing the canvas into an animated GIF."""
+        try:
+            from PIL import Image
+        except Exception:
+            return False, "Pillow not installed (pip install pillow)."
+        imgs = []
+        for _ in range(frames):
+            self._tick()
+            imgs.append(self._grab_pil(Image))
+        imgs[0].save(path, save_all=True, append_images=imgs[1:],
+                     duration=int(1000 / fps), loop=0)
+        return True, path
+
+    def _grab_pil(self, Image):
+        img = self.canvas.grab().toImage().convertToFormat(
+            QtGui.QImage.Format.Format_RGBA8888)
+        w, h = img.width(), img.height()
+        buf = np.frombuffer(bytes(img.constBits()), np.uint8)
+        buf = buf.reshape((h, img.bytesPerLine() // 4, 4))[:, :w, :]
+        return Image.fromarray(buf, "RGBA").convert("RGB")
+
+    def _warn(self, msg):
+        QtWidgets.QMessageBox.warning(self, "open-collective", msg)
