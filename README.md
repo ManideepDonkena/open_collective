@@ -149,6 +149,10 @@ Olfati-Saber, Perception (PAPER_1), SlowFast (PAPER_2), Multi-group — are
 tunable without touching code. Structural choices (model, boundary, N, groups,
 initializer) rebuild the run; parameter sliders apply to the running model.
 
+> Platform status, setup notes, and the change log live in
+> **[BIRDFLOCKLAB.md](BIRDFLOCKLAB.md)** — the running documentation for the
+> BirdFlockLab build-out on top of this engine.
+
 ## Layout
 
 ```
