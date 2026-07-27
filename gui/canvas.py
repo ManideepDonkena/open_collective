@@ -63,6 +63,12 @@ class SimCanvas(QtWidgets.QWidget):
         self.centre = QPointF(5.0, 5.0)
         self._last_mouse = None
 
+        # click-to-place ("place mode"): a click adds a bird, a drag still pans
+        self.place_mode = False
+        self.on_place = None          # callback(world_x, world_y)
+        self._press_pos = None
+        self._moved = False
+
     # -- payload ----------------------------------------------------------
     def set_frame(self, positions, headings, boundary, groups=None,
                   neighbors=None, vision=None):
@@ -124,6 +130,8 @@ class SimCanvas(QtWidgets.QWidget):
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             self._last_mouse = e.position()
+            self._press_pos = e.position()
+            self._moved = False
 
     def mouseMoveEvent(self, e):
         if self._last_mouse is not None:
@@ -131,10 +139,19 @@ class SimCanvas(QtWidgets.QWidget):
             self.centre = QPointF(self.centre.x() - d.x() / self.scale,
                                   self.centre.y() + d.y() / self.scale)
             self._last_mouse = e.position()
+            if self._press_pos is not None:
+                dd = e.position() - self._press_pos
+                if (dd.x() ** 2 + dd.y() ** 2) ** 0.5 > 4:   # a real drag, not a click
+                    self._moved = True
             self.update()
 
     def mouseReleaseEvent(self, e):
+        if (e.button() == Qt.LeftButton and self.place_mode
+                and not self._moved and self.on_place is not None):
+            wx, wy = self._s2w(e.position().x(), e.position().y())
+            self.on_place(wx, wy)
         self._last_mouse = None
+        self._press_pos = None
 
     # -- colours ----------------------------------------------------------
     def _color(self, i):

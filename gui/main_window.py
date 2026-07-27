@@ -22,6 +22,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, Signal
 
 import core.init as cinit
+from core.base import State
 from core.boundary import make_boundary
 from core.metrics import milling_order, summarize
 from core.neighbors import (metric_neighbors, topological_neighbors,
@@ -156,6 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recording = False
         self.rec_metrics = None      # dict[str, list] incl. "t"
         self.rec_traj, self.rec_vel, self.rec_grp = [], [], []
+        self._place_rng = np.random.default_rng(12345)   # headings for placed birds
 
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(33)   # ~30 fps
@@ -231,6 +233,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.param_box = QtWidgets.QGroupBox("Model parameters (live)")
         self.param_form = QtWidgets.QFormLayout(self.param_box)
         pl.addWidget(self.param_box)
+
+        # --- manual initial condition (click-to-place / load CSV) ---
+        ic = QtWidgets.QGroupBox("Initial condition (manual)")
+        il = QtWidgets.QGridLayout(ic)
+        self.place_btn = QtWidgets.QPushButton("Place mode"); self.place_btn.setCheckable(True)
+        self.clear_btn = QtWidgets.QPushButton("Clear birds")
+        self.loadcsv_btn = QtWidgets.QPushButton("Load CSV…")
+        self.place_group_sb = QtWidgets.QSpinBox(); self.place_group_sb.setRange(0, 7)
+        il.addWidget(self.place_btn, 0, 0); il.addWidget(self.clear_btn, 0, 1)
+        il.addWidget(self.loadcsv_btn, 1, 0)
+        il.addWidget(QtWidgets.QLabel("place as group"), 2, 0)
+        il.addWidget(self.place_group_sb, 2, 1)
+        pl.addWidget(ic)
+        self.place_btn.toggled.connect(self._toggle_place)
+        self.clear_btn.clicked.connect(self._clear_birds)
+        self.loadcsv_btn.clicked.connect(self._load_csv)
 
         # --- experiment manager (config / export / capture) ---
         exp = QtWidgets.QGroupBox("Experiment")
@@ -377,7 +395,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.recording or self._steps % 3 == 0:
             m = self._metrics_now()
             self._set_metric_labels(m)
-            if self.recording:
+            if self.recording and m is not None:
                 self._record_step(m)
 
     def _neighbor_info(self):
@@ -406,6 +424,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _metrics_now(self):
         st, b = self.state, self.boundary
+        if st.n < 2:                 # too few birds to measure (e.g. mid-placement)
+            return None
         s = summarize(st.positions, st.headings, b, self.r_link,
                       velocities=st.velocities)
         s["t"] = st.t
@@ -414,6 +434,10 @@ class MainWindow(QtWidgets.QMainWindow):
         return s
 
     def _set_metric_labels(self, s):
+        if s is None:
+            for key, _ in _METRIC_ROWS:
+                self.metric_labels[key].setText("—")
+            return
         for key, _ in _METRIC_ROWS:
             v = s.get(key)
             if isinstance(v, float) and not np.isfinite(v):
@@ -599,3 +623,66 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _warn(self, msg):
         QtWidgets.QMessageBox.warning(self, "open-collective", msg)
+
+    # -- manual initial condition -----------------------------------------
+    def _rebuild_model_keep_state(self):
+        """Reconstruct the model for the current state (drops stale internal caches)."""
+        cls = GUI_MODELS[self.model_cb.currentText()]
+        if cls is MultiGroupFlock and "groups" not in self.state.internal:
+            self.state.internal["groups"] = cinit.assign_groups(
+                self.state.n, max(2, int(self.groups_sb.value())))
+        self.model = cls(self.boundary, rng=np.random.default_rng(0),
+                         **self._param_values())
+
+    def _toggle_place(self, on):
+        if on and self.play_btn.isChecked():
+            self.play_btn.setChecked(False)          # pause while placing
+        self.canvas.place_mode = on
+        self.canvas.on_place = self._place_bird if on else None
+        self.statusBar().showMessage(
+            "Place mode ON — click the canvas to add birds." if on else "", 4000)
+
+    def _place_bird(self, wx, wy):
+        ang = float(self._place_rng.uniform(0, 2 * np.pi))
+        speed = float(self.speed_sb.value())
+        v = speed * np.array([[np.cos(ang), np.sin(ang)]])
+        self.state.positions = np.vstack([self.state.positions, [[wx, wy]]])
+        self.state.velocities = np.vstack([self.state.velocities, v])
+        g = np.asarray(self.state.internal.get("groups", np.zeros(0, dtype=int)),
+                       dtype=int)
+        g = np.append(g, int(self.place_group_sb.value()))
+        self.state.internal = {"groups": g}          # keep groups, drop model caches
+        self._rebuild_model_keep_state()
+        self._refresh_canvas()
+        self._update_metrics()
+
+    def _clear_birds(self, *_):
+        if self.play_btn.isChecked():
+            self.play_btn.setChecked(False)
+        self.state = State(positions=np.zeros((0, 2)), velocities=np.zeros((0, 2)))
+        self.state.internal["groups"] = np.zeros(0, dtype=int)
+        self._rebuild_model_keep_state()
+        self.canvas.clear_trails()
+        self._refresh_canvas()
+        self._update_metrics()
+
+    def _load_csv(self, *_):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Load initial condition (CSV)", "results", "CSV (*.csv)")
+        if path:
+            self._do_load_csv(path)
+
+    def _do_load_csv(self, path):
+        st = cinit.from_csv(path)
+        if st.dim != 2:
+            return self._warn("The CSV must be 2D (needs x and y columns).")
+        if self.play_btn.isChecked():
+            self.play_btn.setChecked(False)
+        self.state = st
+        self._steps = 0
+        self._rebuild_model_keep_state()
+        self.canvas.clear_trails()
+        self.canvas.fit(st.positions, self.boundary)
+        self._refresh_canvas()
+        self._update_metrics()
+        self.statusBar().showMessage(f"Loaded {st.n} birds from {path}", 4000)

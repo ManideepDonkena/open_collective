@@ -74,6 +74,38 @@ def main():
     print(f"\n{n_models}/{n_models} GUI models stepped cleanly.")
 
     _check_experiment_manager(win, out)
+    _check_manual_init(win, out)
+
+
+def _check_manual_init(win, out):
+    """Click-to-place birds and load an initial condition from CSV."""
+    import core.init as cinit
+    from core import make_boundary
+
+    print("\n--- manual initial condition ---")
+    win.model_cb.setCurrentText("Vicsek")
+
+    # click-to-place: clear, then add birds via the canvas place callback
+    win._clear_birds()
+    assert win.state.n == 0
+    for (x, y) in [(1, 1), (2, 1), (1.5, 2), (3, 3), (2.5, 1.5)]:
+        win._place_bird(float(x), float(y))
+    assert win.state.n == 5, f"expected 5 placed birds, got {win.state.n}"
+    for _ in range(5):
+        win._tick()                      # the placed flock must step cleanly
+    assert win.state.n == 5 and np.all(np.isfinite(win.state.positions))
+    print(f"  PASS  click-to-place built {win.state.n} birds and stepped")
+
+    # load an initial condition from a CSV written by core.init
+    st = cinit.random_init(30, make_boundary("open", dim=2), n_groups=2)
+    csv = out / "gui_init.csv"
+    cinit.state_to_csv(st, csv)
+    win._do_load_csv(str(csv))
+    assert win.state.n == 30, f"expected 30 birds from CSV, got {win.state.n}"
+    for _ in range(3):
+        win._tick()
+    print(f"  PASS  loaded {win.state.n} birds from {csv.name} and stepped")
+    print("\nmanual initial condition OK.")
 
 
 def _check_experiment_manager(win, out):
