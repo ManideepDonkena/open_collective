@@ -63,6 +63,18 @@ _RECORD_KEYS = ["polar_order", "radius_of_gyration", "nn_distance", "n_fragments
                 "largest_cluster_frac", "mean_neighbors", "density",
                 "heading_entropy", "mean_speed", "milling"]
 
+# Time-series panels for the "Plot metrics" window: one measure per panel (never a
+# dual-axis chart), each panel titled so it needs no legend. Colours are from the
+# colour-blind-safe Okabe-Ito set, one per panel.
+_PLOT_PANELS = [
+    ("polar_order", "polar order M", "#0072B2"),
+    ("milling", "milling", "#E69F00"),
+    ("radius_of_gyration", "radius of gyration", "#009E73"),
+    ("n_fragments", "fragments", "#D55E00"),
+    ("heading_entropy", "heading entropy", "#CC79A7"),
+    ("mean_speed", "mean speed", "#56B4E9"),
+]
+
 _SKIP_PARAMS = {"self", "boundary", "rng", "groups"}
 _METRIC_ROWS = [
     ("t", "t"), ("polar_order", "polar order M"), ("milling", "milling"),
@@ -183,6 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.boundary_cb = QtWidgets.QComboBox()
         self.boundary_cb.addItems(["periodic", "open", "reflecting"])
         self.boundary_cb.setCurrentText("open")
+        self.dim_cb = QtWidgets.QComboBox(); self.dim_cb.addItems(["2D", "3D"])
         self.L_sb = QtWidgets.QDoubleSpinBox(); self.L_sb.setRange(1, 200); self.L_sb.setValue(10.0)
         self.init_cb = QtWidgets.QComboBox()
         self.init_cb.addItems(["random", "cluster", "ring", "grid"])
@@ -191,14 +204,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.speed_sb = QtWidgets.QDoubleSpinBox(); self.speed_sb.setRange(0, 10); self.speed_sb.setSingleStep(0.1); self.speed_sb.setValue(0.5)
         self.dt_sb = QtWidgets.QDoubleSpinBox(); self.dt_sb.setRange(0.001, 1.0); self.dt_sb.setSingleStep(0.01); self.dt_sb.setDecimals(3); self.dt_sb.setValue(0.05)
         for lab, w in [("model", self.model_cb), ("boundary", self.boundary_cb),
-                       ("box L", self.L_sb), ("init", self.init_cb),
-                       ("N", self.N_sb), ("groups", self.groups_sb),
-                       ("speed", self.speed_sb), ("dt", self.dt_sb)]:
+                       ("view", self.dim_cb), ("box L", self.L_sb),
+                       ("init", self.init_cb), ("N", self.N_sb),
+                       ("groups", self.groups_sb), ("speed", self.speed_sb),
+                       ("dt", self.dt_sb)]:
             form.addRow(lab, w)
         pl.addWidget(setup)
 
         self.model_cb.currentIndexChanged.connect(self._on_model_changed)
-        for w in (self.boundary_cb, self.init_cb):
+        for w in (self.boundary_cb, self.init_cb, self.dim_cb):
             w.currentIndexChanged.connect(self._reset)
         for w in (self.L_sb, self.speed_sb):
             w.valueChanged.connect(self._reset)
@@ -258,6 +272,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ("Save config…", self._save_config), ("Load config…", self._load_config),
             ("Screenshot…", self._screenshot), (self.rec_btn, self._toggle_record),
             ("Export metrics…", self._export_metrics), ("Export trajectory…", self._export_traj),
+            ("Plot metrics…", self._plot_metrics), ("Sweep…", self._sweep_dialog),
             ("Save GIF…", self._save_gif),
         ]
         for i, (item, slot) in enumerate(buttons):
@@ -339,7 +354,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.rec_btn.setChecked(False)
         kind = self.boundary_cb.currentText()
         L = float(self.L_sb.value())
-        self.boundary = make_boundary(kind, L, 2)
+        name = self.model_cb.currentText()
+        cls = GUI_MODELS[name]
+        dim = 3 if self.dim_cb.currentText() == "3D" else 2
+        if cls is KuramotoModel and dim == 3:            # Kuramoto is a 2D phase model
+            dim = 2
+            self.dim_cb.blockSignals(True); self.dim_cb.setCurrentText("2D")
+            self.dim_cb.blockSignals(False)
+            self.statusBar().showMessage("Kuramoto is 2D-only — using 2D.", 4000)
+        self.boundary = make_boundary(kind, L, dim)
         self.r_link = 1.0
         n = int(self.N_sb.value())
         ng = int(self.groups_sb.value())
@@ -359,8 +382,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             st = cinit.grid_init(n, self.boundary, speed=speed, n_groups=ng, rng=rng)
 
-        name = self.model_cb.currentText()
-        cls = GUI_MODELS[name]
         # Multi-group flock needs an allegiance vector to exist.
         if cls is MultiGroupFlock and "groups" not in st.internal:
             st.internal["groups"] = cinit.assign_groups(n, max(2, ng))
@@ -621,6 +642,155 @@ class MainWindow(QtWidgets.QMainWindow):
         buf = buf.reshape((h, img.bytesPerLine() // 4, 4))[:, :w, :]
         return Image.fromarray(buf, "RGBA").convert("RGB")
 
+    # -- analysis plots ---------------------------------------------------
+    def _build_metrics_figure(self):
+        """A matplotlib Figure of the recorded time-series, or None if nothing recorded."""
+        h = self._history_dict()
+        if h is None or len(h["t"]) < 2:
+            return None
+        from matplotlib.figure import Figure
+        t = np.asarray(h["t"])
+        fig = Figure(figsize=(8.2, 5.2))
+        fig.suptitle(f"{self.model_cb.currentText()}  ·  "
+                     f"{self.boundary_cb.currentText()} boundary  ·  "
+                     f"{len(t)} recorded frames", fontsize=11)
+        for i, (key, label, color) in enumerate(_PLOT_PANELS):
+            ax = fig.add_subplot(2, 3, i + 1)
+            data = np.asarray(h[key], dtype=float) if key in h else None
+            if data is not None and np.any(np.isfinite(data)):
+                ax.plot(t, data, color=color, lw=1.8)
+            else:                                # e.g. milling is undefined on a torus
+                ax.text(0.5, 0.5, "n/a here", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=8, color="0.6")
+            ax.set_title(label, fontsize=9)      # single series -> title names it, no legend
+            ax.set_xlabel("time", fontsize=8)
+            ax.grid(True, alpha=0.25, lw=0.6)
+            ax.tick_params(labelsize=7)
+            for side in ("top", "right"):        # recessive axes
+                ax.spines[side].set_visible(False)
+        fig.tight_layout(rect=(0, 0, 1, 0.95))
+        return fig
+
+    def _do_plot_metrics(self, save_path):
+        """Render the recorded-metrics figure to an image file. Returns True on success."""
+        fig = self._build_metrics_figure()
+        if fig is None:
+            return False
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        FigureCanvasAgg(fig)                     # attach an offscreen canvas
+        fig.savefig(str(save_path), dpi=120)
+        return True
+
+    def _show_figure(self, fig, title, size=(860, 560)):
+        """Show a matplotlib Figure in a non-modal Qt dialog."""
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.resize(*size)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        QtWidgets.QVBoxLayout(dlg).addWidget(FigureCanvas(fig))
+        dlg.show()
+        self._open_dialogs = getattr(self, "_open_dialogs", [])
+        self._open_dialogs.append(dlg)           # keep a ref so it isn't garbage-collected
+
+    def _plot_metrics(self):
+        fig = self._build_metrics_figure()
+        if fig is None:
+            return self._warn("Nothing recorded yet. Press ● Record, run it, then plot.")
+        self._show_figure(fig, "Recorded measurements")
+
+    # -- parameter sweep --------------------------------------------------
+    def _run_sweep(self, param, values, steps, metric_key):
+        """Run one batch per value of `param`; return manager.parameter_sweep rows.
+
+        Uses the current GUI setup as the base config, so a sweep is just 'this
+        experiment, repeated while one number changes'.
+        """
+        base = self.current_config()
+        base["run"] = dict(base["run"])
+        base["run"]["steps"] = int(steps)
+        base["run"]["record_traj"] = False
+        base["run"]["record_every"] = max(1, int(steps) // 25)
+        return manager.parameter_sweep(base, f"model.params.{param}",
+                                       [float(v) for v in values],
+                                       metric_keys=[metric_key])
+
+    def _build_sweep_figure(self, param, rows, metric_key, metric_label):
+        from matplotlib.figure import Figure
+        key = f"model.params.{param}"
+        xs = [r[key] for r in rows]
+        ys = [r.get(metric_key, float("nan")) for r in rows]
+        fig = Figure(figsize=(6.4, 4.4))
+        ax = fig.add_subplot(111)
+        ax.plot(xs, ys, "o-", color="#0072B2", lw=1.8, ms=6)
+        ax.set_xlabel(param)
+        ax.set_ylabel(metric_label)
+        ax.set_title(f"{self.model_cb.currentText()}: {metric_label} vs {param}",
+                     fontsize=11)
+        ax.grid(True, alpha=0.25, lw=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        fig.tight_layout()
+        return fig
+
+    def _do_sweep(self, param, lo, hi, points, steps, metric_key, save_path=None):
+        """Headless-friendly: run a sweep, build the figure, optionally save it."""
+        values = np.linspace(lo, hi, int(points))
+        rows = self._run_sweep(param, values, steps, metric_key)
+        fig = self._build_sweep_figure(param, rows, metric_key, metric_key)
+        if save_path is not None:
+            from matplotlib.backends.backend_agg import FigureCanvasAgg
+            FigureCanvasAgg(fig)
+            fig.savefig(str(save_path), dpi=120)
+        return rows
+
+    def _sweep_dialog(self):
+        params = [n for n, (w, k) in self.param_widgets.items() if k in ("float", "int")]
+        if not params:
+            return self._warn("This model has no numeric parameters to sweep.")
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("Parameter sweep")
+        form = QtWidgets.QFormLayout(dlg)
+        p_cb = QtWidgets.QComboBox(); p_cb.addItems(params)
+        lo = QtWidgets.QDoubleSpinBox(); lo.setRange(-1e6, 1e6); lo.setDecimals(3)
+        hi = QtWidgets.QDoubleSpinBox(); hi.setRange(-1e6, 1e6); hi.setDecimals(3)
+        pts = QtWidgets.QSpinBox(); pts.setRange(2, 20); pts.setValue(6)
+        steps = QtWidgets.QSpinBox(); steps.setRange(20, 5000); steps.setValue(200)
+        m_cb = QtWidgets.QComboBox()
+        for _, label, _c in _PLOT_PANELS:
+            m_cb.addItem(label)
+        run = QtWidgets.QPushButton("Run sweep")
+        for lab, w in [("parameter", p_cb), ("from", lo), ("to", hi),
+                       ("points", pts), ("steps / run", steps), ("plot", m_cb)]:
+            form.addRow(lab, w)
+        form.addRow(run)
+
+        def sync_range():
+            w, _k = self.param_widgets[p_cb.currentText()]
+            cur = float(w.value())
+            lo.setValue(0.0)
+            hi.setValue(max(1.0, 2.0 * cur) if cur else 1.0)
+        p_cb.currentTextChanged.connect(lambda *_: sync_range())
+        sync_range()
+
+        def do_run():
+            key = next(k for k, lab, _c in _PLOT_PANELS if lab == m_cb.currentText())
+            QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                rows = self._do_sweep(p_cb.currentText(), lo.value(), hi.value(),
+                                      pts.value(), steps.value(), key)
+            finally:
+                QtWidgets.QApplication.restoreOverrideCursor()
+            fig = self._build_sweep_figure(p_cb.currentText(), rows, key,
+                                           m_cb.currentText())
+            dlg.accept()
+            self._show_figure(fig, f"Sweep: {m_cb.currentText()} vs {p_cb.currentText()}",
+                              size=(660, 500))
+        run.clicked.connect(do_run)
+        dlg.show()
+        self._open_dialogs = getattr(self, "_open_dialogs", [])
+        self._open_dialogs.append(dlg)
+
     def _warn(self, msg):
         QtWidgets.QMessageBox.warning(self, "open-collective", msg)
 
@@ -635,6 +805,9 @@ class MainWindow(QtWidgets.QMainWindow):
                          **self._param_values())
 
     def _toggle_place(self, on):
+        if on and self.state is not None and self.state.dim == 3:
+            self.place_btn.setChecked(False)         # click-to-place is 2D only
+            return self._warn("Place mode works in the 2D view only.")
         if on and self.play_btn.isChecked():
             self.play_btn.setChecked(False)          # pause while placing
         self.canvas.place_mode = on

@@ -168,8 +168,13 @@ The picture of the birds is on the **left**. The buttons are on the **right**.
   it back later (**Load config**) — the exact same run comes back. **● Record**
   starts saving each frame; then **Export metrics** writes the numbers to a CSV
   and **Export trajectory** writes every bird's path to a CSV or `.h5` file.
+  **Plot metrics** opens charts of the recorded numbers over time.
+  **Sweep** re-runs the experiment while one setting changes and plots the result
+  (e.g. how order changes as noise goes up).
   **Screenshot** saves a picture, and **Save GIF** saves a short animation.
-- **Move around**: **scroll** to zoom, **drag** to move the view.
+- **View (2D / 3D)**: switch the canvas between flat 2D and a rotatable 3D view.
+- **Move around**: **scroll** to zoom; **drag** moves the view in 2D and **rotates**
+  it in 3D.
 
 ---
 

@@ -74,7 +74,59 @@ def main():
     print(f"\n{n_models}/{n_models} GUI models stepped cleanly.")
 
     _check_experiment_manager(win, out)
+    _check_sweep(win, out)
     _check_manual_init(win, out)
+    _check_3d(win, out)
+
+
+def _check_3d(win, out):
+    """3D view: models run in 3D, Kuramoto is forced to 2D, and it renders."""
+    print("\n--- 3D view ---")
+    win.boundary_cb.setCurrentText("open")
+    win.N_sb.setValue(80)
+    for m in ["Vicsek", "Boids", "Cucker-Smale"]:
+        win.model_cb.setCurrentText(m)
+        win.dim_cb.setCurrentText("3D")            # triggers a 3D reset
+        assert win.state.dim == 3, f"{m}: expected 3D, got {win.state.dim}D"
+        for _ in range(10):
+            win._tick()
+        assert win.state.positions.shape[1] == 3 and np.all(np.isfinite(win.state.positions))
+        print(f"  PASS  {m} runs in 3D (N={win.state.n})")
+
+    win.model_cb.setCurrentText("Kuramoto")
+    win.dim_cb.setCurrentText("3D")
+    assert win.state.dim == 2, "Kuramoto must be forced to 2D"
+    print("  PASS  Kuramoto forced to 2D in the 3D view")
+
+    # render a 3D scene to an image
+    win.model_cb.setCurrentText("Vicsek")
+    win.dim_cb.setCurrentText("3D")
+    win.cb_trails.setChecked(True)
+    for _ in range(30):
+        win._tick()
+    win.canvas.fit(win.state.positions, win.boundary)
+    png = out / "gui_3d.png"
+    win.canvas.grab().save(str(png))
+    assert png.exists() and png.stat().st_size > 0
+    print(f"  PASS  3D screenshot -> {png.name} ({png.stat().st_size} bytes)")
+    print("\n3D view OK.")
+
+
+def _check_sweep(win, out):
+    """In-GUI parameter sweep: Vicsek noise eta vs order should trend downward."""
+    print("\n--- parameter sweep ---")
+    win.model_cb.setCurrentText("Vicsek")
+    win.boundary_cb.setCurrentText("periodic")
+    win.N_sb.setValue(60)
+    rows = win._do_sweep("eta", 0.0, 1.5, 5, 120, "polar_order",
+                         out / "gui_sweep.png")
+    assert len(rows) == 5, f"expected 5 sweep points, got {len(rows)}"
+    ys = [r["polar_order"] for r in rows]
+    assert ys[0] > ys[-1], f"order should fall with noise, got {ys[0]:.2f}->{ys[-1]:.2f}"
+    assert (out / "gui_sweep.png").stat().st_size > 0
+    print(f"  PASS  eta sweep: polar order {ys[0]:.2f} (quiet) -> {ys[-1]:.2f} (noisy), "
+          f"plot -> gui_sweep.png")
+    print("\nparameter sweep OK.")
 
 
 def _check_manual_init(win, out):
@@ -151,6 +203,13 @@ def _check_experiment_manager(win, out):
         print(f"  PASS  GIF written -> {gif.name} ({gif.stat().st_size} bytes)")
     else:
         print(f"  SKIP  GIF ({msg})")
+
+    # 5. plot the recorded metrics to an image
+    plot = out / "gui_plot.png"
+    assert win._do_plot_metrics(plot), "plotting recorded metrics failed"
+    assert plot.exists() and plot.stat().st_size > 0
+    print(f"  PASS  plotted recorded metrics -> {plot.name} "
+          f"({plot.stat().st_size} bytes)")
 
     print("\nexperiment manager integration OK.")
 

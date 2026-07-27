@@ -69,6 +69,13 @@ class SimCanvas(QtWidgets.QWidget):
         self._press_pos = None
         self._moved = False
 
+        # 3D view (used automatically when positions are 3D): orthographic,
+        # rotate by dragging. azim/elev are the view angles; _center3 is the
+        # world point the projection is centred on.
+        self.azim = 0.6
+        self.elev = 0.4
+        self._center3 = np.zeros(3)
+
     # -- payload ----------------------------------------------------------
     def set_frame(self, positions, headings, boundary, groups=None,
                   neighbors=None, vision=None):
@@ -92,6 +99,20 @@ class SimCanvas(QtWidgets.QWidget):
     def fit(self, positions, boundary):
         """Frame either the finite domain or the current point cloud."""
         L = boundary.box_size if boundary is not None else None
+        pos = np.asarray(positions, dtype=float)
+        if pos.ndim == 2 and pos.shape[1] >= 3:      # 3D view
+            if L is not None:
+                self._center3 = np.array([L / 2, L / 2, L / 2]); extent = L
+            elif len(pos):
+                lo3, hi3 = pos.min(axis=0), pos.max(axis=0)
+                self._center3 = (lo3 + hi3) / 2
+                extent = float(max((hi3 - lo3).max(), 1.0)) * 1.3
+            else:
+                self._center3 = np.zeros(3); extent = 10.0
+            w = max(self.width(), 1); h = max(self.height(), 1)
+            self.scale = 0.8 * min(w, h) / extent
+            self.update()
+            return
         if L is not None:
             lo = np.array([0.0, 0.0]); hi = np.array([L, L])
         elif len(positions):
@@ -136,8 +157,12 @@ class SimCanvas(QtWidgets.QWidget):
     def mouseMoveEvent(self, e):
         if self._last_mouse is not None:
             d = e.position() - self._last_mouse
-            self.centre = QPointF(self.centre.x() - d.x() / self.scale,
-                                  self.centre.y() + d.y() / self.scale)
+            if self.positions.ndim == 2 and self.positions.shape[1] >= 3:
+                self.azim += d.x() * 0.01                     # 3D: drag rotates
+                self.elev = float(np.clip(self.elev + d.y() * 0.01, -1.55, 1.55))
+            else:
+                self.centre = QPointF(self.centre.x() - d.x() / self.scale,
+                                      self.centre.y() + d.y() / self.scale)
             self._last_mouse = e.position()
             if self._press_pos is not None:
                 dd = e.position() - self._press_pos
@@ -164,6 +189,13 @@ class SimCanvas(QtWidgets.QWidget):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing, True)
         p.fillRect(self.rect(), _BG)
+        if self.positions.ndim == 2 and self.positions.shape[1] >= 3:
+            self._paint3d(p)
+        else:
+            self._paint2d(p)
+        p.end()
+
+    def _paint2d(self, p):
         if self.boundary is not None:
             self._draw_domain(p)
         if self.show_trails and self.trails:
@@ -173,7 +205,6 @@ class SimCanvas(QtWidgets.QWidget):
         if self.show_cones and self.vision is not None:
             self._draw_cones(p)
         self._draw_agents(p)
-        p.end()
 
     def _draw_domain(self, p):
         b = self.boundary
@@ -257,3 +288,91 @@ class SimCanvas(QtWidgets.QWidget):
             p.setPen(pen)
             tip = self._w2s(x[i, 0] + h[i, 0] * arrow, x[i, 1] + h[i, 1] * arrow)
             p.drawLine(c, tip)
+
+    # -- 3D rendering (orthographic, rotatable) ---------------------------
+    def _project3(self, pts):
+        """World (N,3) -> (screen_x, screen_y, depth). Depth sorts near/far."""
+        q = np.asarray(pts, dtype=float).reshape(-1, 3) - self._center3
+        ca, sa = np.cos(self.azim), np.sin(self.azim)
+        ce, se = np.cos(self.elev), np.sin(self.elev)
+        x = ca * q[:, 0] - sa * q[:, 1]                 # yaw about z
+        y = sa * q[:, 0] + ca * q[:, 1]
+        z = q[:, 2]
+        yv = ce * y - se * z                            # pitch about x
+        depth = se * y + ce * z
+        sx = self.width() / 2 + x * self.scale
+        sy = self.height() / 2 - yv * self.scale
+        return sx, sy, depth
+
+    def _paint3d(self, p):
+        if self.boundary is not None:
+            self._draw_box3d(p)
+        if self.show_trails and self.trails:
+            self._draw_trails3d(p)
+        if self.show_links and self.neighbors is not None:
+            self._draw_links3d(p)
+        self._draw_agents3d(p)
+
+    def _draw_box3d(self, p):
+        b = self.boundary
+        if not isinstance(b, (PeriodicBoundary, ReflectingBoundary)):
+            return
+        L = b.L
+        corners = np.array([[a, c, d] for a in (0, L) for c in (0, L)
+                            for d in (0, L)], dtype=float)
+        sx, sy, _ = self._project3(corners)
+        pen = QtGui.QPen(QtGui.QColor(120, 120, 130)); pen.setCosmetic(True)
+        if isinstance(b, PeriodicBoundary):
+            pen.setStyle(Qt.DashLine)
+        p.setPen(pen)
+        for i in range(8):
+            for j in range(i + 1, 8):
+                if bin(i ^ j).count("1") == 1:          # cube edge: differ in one axis
+                    p.drawLine(QPointF(sx[i], sy[i]), QPointF(sx[j], sy[j]))
+
+    def _draw_agents3d(self, p):
+        x, h = self.positions, self.headings
+        sx, sy, depth = self._project3(x)
+        hx, hy, _ = self._project3(x + h * 0.7)         # heading tip in world space
+        r = self.agent_px
+        for i in np.argsort(depth):                     # far first, near last
+            col = self._color(int(i))
+            c = QPointF(sx[i], sy[i])
+            p.setBrush(col); p.setPen(Qt.NoPen)
+            p.drawEllipse(c, r, r)
+            pen = QtGui.QPen(col); pen.setWidthF(1.4); pen.setCosmetic(True)
+            p.setPen(pen)
+            p.drawLine(c, QPointF(hx[i], hy[i]))
+
+    def _draw_trails3d(self, p):
+        L = self.boundary.box_size if self.boundary else None
+        n = self.trails[-1].shape[0]
+        for i in range(n):
+            pts = [f[i] for f in self.trails if i < f.shape[0]]
+            if len(pts) < 2:
+                continue
+            arr = np.asarray(pts)
+            sx, sy, _ = self._project3(arr)
+            col = QtGui.QColor(self._color(i)); col.setAlpha(70)
+            pen = QtGui.QPen(col); pen.setCosmetic(True); p.setPen(pen)
+            for k in range(1, len(arr)):
+                if L is None or np.max(np.abs(arr[k] - arr[k - 1])) < 0.5 * L:
+                    p.drawLine(QPointF(sx[k - 1], sy[k - 1]),
+                               QPointF(sx[k], sy[k]))
+
+    def _draw_links3d(self, p):
+        x, b = self.positions, self.boundary
+        sx, sy, _ = self._project3(x)
+        pen = QtGui.QPen(QtGui.QColor(150, 150, 160, 90)); pen.setCosmetic(True)
+        p.setPen(pen)
+        seen = set()
+        for i, cand in enumerate(self.neighbors):
+            for j in np.asarray(cand).ravel():
+                j = int(j)
+                key = (i, j) if i < j else (j, i)
+                if key in seen:
+                    continue
+                seen.add(key)
+                d = b.displacement(x[i], x[j]) if b is not None else x[j] - x[i]
+                ex, ey, _ = self._project3(x[i] + d)
+                p.drawLine(QPointF(sx[i], sy[i]), QPointF(ex[0], ey[0]))

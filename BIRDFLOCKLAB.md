@@ -28,7 +28,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | 2 | Model Library | ✅ | 10 free-running models incl. **Kuramoto** (added). Custom models = subclass `CollectiveModel`. Missing named model: **"Mind-Flock"** (dynamics TBD from user). |
 | 3 | Initialization | ✅ | `core/init.py`: random / cluster / ring / grid / manual / CSV. Group-aware. |
 | 4 | Parameter Control | ✅ | GUI exposes a **live slider per numeric constructor arg** of the selected model (introspected). Structural params (N, boundary, init) rebuild; others apply live. |
-| 5 | Visualization | 🟡 | Interactive 2D canvas: play/pause/step/reset, zoom/pan, trails, vision cones, neighbour links, group colours, live metrics. **3D interactive** not yet (offline 3D exists in `core/viz3d.py`). |
+| 5 | Visualization | ✅ | Interactive **2D and 3D** canvas: play/pause/step/reset, zoom/pan, drag-to-rotate (3D), trails, neighbour links, group colours, live metrics, boundary box/cube. (Vision cones are drawn in 2D only.) |
 | 6 | Measurement | ✅ | polarization, milling, angular momentum, cluster/fragment count, nn-distance, **density**, **heading_entropy**, **mean_speed**, + group-maintenance + consensus observables. |
 | 7 | Experiment Manager | ✅ | `experiments/manager.py`: registry, JSON/YAML config save/load, CSV/HDF5 export, parameter sweep — **now wired into the GUI** (Save/Load config, Record, Export metrics/trajectory, Screenshot, Save GIF). A config saved from the GUI re-runs headless via `manager.run_experiment`. |
 
@@ -149,6 +149,49 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 
 Newest first. Append an entry per increment.
 
+### 2026-07-27 — 3D interactive canvas (spec module 5)
+**Added**
+- `gui/canvas.py` — orthographic 3D projection used automatically when the state
+  is 3D: agents (depth-sorted) + heading tails, boundary **cube** wireframe
+  (dashed periodic / solid reflecting), projected trails and neighbour links.
+  **Left-drag rotates** (azim/elev), wheel zooms. Vision cones stay 2D-only.
+- `gui/main_window.py` — a **2D / 3D** view selector. 3D builds the boundary and
+  initializer at `dim=3` (the engine is already d-dimensional). **Kuramoto** (a
+  2D phase model) is auto-kept at 2D; **place mode** is disabled in 3D.
+
+**Verified** (`tests/test_gui_smoke.py`) — Vicsek / Boids / Cucker-Smale each step
+cleanly in 3D (N=80); Kuramoto is forced to 2D; 3D scenes render to
+`results/gui_3d.png` (open) and `results/gui_3d_box.png` (periodic cube), both
+visually checked.
+
+### 2026-07-27 — In-GUI parameter sweep (spec module 7)
+**Added (in `gui/main_window.py`)**
+- **Sweep…** button + dialog: pick a numeric model parameter, a from/to range,
+  number of points, steps-per-run, and a metric; it runs one batch per value via
+  `manager.parameter_sweep` (using the current GUI setup as the base config) and
+  plots the chosen metric vs the parameter.
+- Split for testability: `_run_sweep` / `_build_sweep_figure` / `_do_sweep`; a
+  shared `_show_figure` helper now backs both the sweep and the metrics plots.
+
+**Verified** (`tests/test_gui_smoke.py`) — a Vicsek `eta` sweep (0→1.5) reproduces
+the order–disorder transition: polar order **0.73 (quiet) → 0.07 (noisy)**; plot
+saved to `results/gui_sweep.png` and visually checked (clean transition curve).
+
+### 2026-07-27 — In-GUI analysis plots (spec module 6)
+**Added (in `gui/main_window.py`)**
+- **Plot metrics…** button: opens a matplotlib window of the recorded run —
+  a 2×3 panel of time-series (polar order, milling, R_g, fragments, heading
+  entropy, mean speed). One measure per panel (no dual-axis), titled so no legend
+  is needed, recessive axes, colour-blind-safe (Okabe-Ito) colours; a panel whose
+  measure is undefined here (e.g. milling on a torus) is annotated "n/a here".
+- Rendering is split so it's testable: `_build_metrics_figure()` returns the
+  Figure, `_do_plot_metrics(path)` saves it (Agg), `_plot_metrics()` shows it in
+  a Qt dialog (QtAgg).
+
+**Verified** (`tests/test_gui_smoke.py`) — recorded run → `results/gui_plot.png`
+(85 KB) rendered and visually checked (Vicsek ordering up, fragments down,
+entropy down, mean speed flat, milling correctly "n/a" on the torus).
+
 ### 2026-07-27 — Manual initial conditions in the GUI (spec modules 3 & 5)
 **Added**
 - `gui/canvas.py` — **place mode**: a left-click adds a bird at that world point;
@@ -241,8 +284,8 @@ Newest first. Append an entry per increment.
 - [x] **Wire Experiment Manager into the GUI** — done 2026-07-27 (Save/Load
       config, Export metrics/trajectory CSV·HDF5, Screenshot, Save GIF).
       Remaining nice-to-have: MP4 export (needs ffmpeg/imageio).
-- [ ] **3D interactive canvas** — the offline `viz3d.py` is 3D; the live canvas
-      is 2D. Options: VisPy/OpenGL, or a 2.5D projection in the QPainter canvas.
+- [x] **3D interactive canvas** — done 2026-07-27 (orthographic projection in the
+      QPainter canvas, drag-to-rotate; 2D/3D selector). Vision cones remain 2D-only.
 - [ ] **Numba / vectorization** — for >~1000 agents at interactive FPS; several
       model `step()` loops are per-agent Python loops.
 - [x] **CSV/manual init in the GUI** — done 2026-07-27 (Place mode, place-as-
@@ -257,5 +300,5 @@ Newest first. Append an entry per increment.
 |---|---|---|
 | Theorem suite | `tests/test_theorems.py` | 13/13 pass |
 | New features | `experiments/demo_new_features.py` | all sections pass |
-| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF, click-to-place, CSV load |
+| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF, metrics plot, parameter sweep, click-to-place, CSV load, 3D render |
 | Live GUI | `run_gui.py` | pending `libxcb-cursor0` install on user's machine |
