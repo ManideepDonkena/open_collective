@@ -35,3 +35,4 @@ Thumbs.db
 results/demo_*
 results/init_snapshot.csv
 results/gui_*
+/flock.png

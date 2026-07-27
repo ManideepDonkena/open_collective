@@ -3,6 +3,34 @@
 This guide shows you how to install and run the project. It works on **Linux,
 macOS, and Windows**. Just follow the steps in order.
 
+## ⭐ The easy way (no setup, no commands to learn)
+
+If you are not technical, ignore everything else and do this:
+
+1. Make sure **Python 3.10+** is installed (from [python.org](https://www.python.org/downloads/)).
+2. In this folder, run one line:
+   ```bash
+   python3 start.py        # on Windows:  python start.py
+   ```
+   or **double-click** the file for your system:
+   - **Mac** → `start.command`
+   - **Linux** → `start.sh`
+   - **Windows** → `start.bat`
+
+The first time, it makes its own private workspace and installs **everything the
+app needs** — the visual app, plotting, and the file-saving formats (nothing
+else on your computer is changed). This takes a few minutes. Then the app opens.
+That's it. If a window doesn't appear on Linux, `start.py` prints the one line to
+copy-paste that fixes it.
+
+**Just want a picture?** After running `start.py` once, run `python3 example.py`
+— it saves a picture called `flock.png` you can open. Change the three numbers
+at the top of that file and run it again to experiment.
+
+The rest of this page is the manual, step-by-step version.
+
+---
+
 - Want to know what the project does? See [../README.md](../README.md).
 - Want the full research story? See [../RESEARCH.md](../RESEARCH.md).
 - Want the build progress and change log? See [../BIRDFLOCKLAB.md](../BIRDFLOCKLAB.md).

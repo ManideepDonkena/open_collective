@@ -115,9 +115,15 @@ departing). Half-adopting the theory is much worse than ignoring it.
 
 ## Install & run
 
+> **Not technical? The easy button:** run `python3 start.py` (Windows:
+> `python start.py`), or double-click `start.command` (Mac) / `start.sh` (Linux)
+> / `start.bat` (Windows). It builds its own workspace, installs everything the
+> app needs, and opens the app. For a picture instead, run `python3 example.py`
+> → `flock.png`.
+>
 > New to the project? Follow the step-by-step, beginner-friendly
 > **[Getting Started guide](docs/GETTING_STARTED.md)** (Linux/macOS/Windows).
-> The quick version is below.
+> The developer quick version is below.
 
 ```bash
 pip install numpy scipy matplotlib pillow
