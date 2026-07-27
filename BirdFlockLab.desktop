@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=BirdFlockLab
+GenericName=Flocking Simulator
+Comment=Interactive collective-motion / flocking simulator
+Exec="/home/manideep/Downloads/open_collective(1)/open_collective/start.sh"
+Path=/home/manideep/Downloads/open_collective(1)/open_collective
+Terminal=true
+Icon=applications-science
+Categories=Science;
