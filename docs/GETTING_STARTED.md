@@ -13,9 +13,13 @@ If you are not technical, ignore everything else and do this:
    python3 start.py        # on Windows:  python start.py
    ```
    or **double-click** the file for your system:
-   - **Mac** → `start.command`
-   - **Linux** → `start.sh`
-   - **Windows** → `start.bat`
+   - **Windows** → `start.bat` (double-click runs it)
+   - **Mac** → `start.command` (double-click runs it in Terminal)
+   - **Linux (GNOME/most desktops)** → double-clicking `start.sh` usually just
+     **opens it in a text editor, it does not run.** Instead, **right-click
+     `start.sh` → "Run as a Program"**, or run `python3 start.py` in a terminal.
+     For a real clickable icon, copy `BirdFlockLab.desktop` into
+     `~/.local/share/applications/` (then find "BirdFlockLab" in your apps).
 
 The first time, it makes its own private workspace and installs **everything the
 app needs** — the visual app, plotting, and the file-saving formats (nothing
@@ -154,6 +158,10 @@ The picture of the birds is on the **left**. The buttons are on the **right**.
   and *group colours*.
 - **Model parameters**: sliders for the picked model. Move a slider and the
   change happens right away, while it runs.
+- **Initial condition (manual)**: turn on **Place mode** and click the canvas to
+  add birds by hand (pick a colour with *place as group*). **Clear birds** empties
+  it; **Load CSV** loads birds from a file. (While Place mode is on, click = add a
+  bird, drag = move the view.)
 - **Measurements**: live numbers (order, spread, groups, speed, and more) that
   update every frame.
 - **Experiment**: save your current setup to a file (**Save config**) and load

@@ -149,6 +149,22 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 
 Newest first. Append an entry per increment.
 
+### 2026-07-27 — Manual initial conditions in the GUI (spec modules 3 & 5)
+**Added**
+- `gui/canvas.py` — **place mode**: a left-click adds a bird at that world point;
+  a left-drag still pans (distinguished by a 4px move threshold).
+- `gui/main_window.py` — **Initial condition** panel: *Place mode*, *place as
+  group* (0–7, colours the placed birds), *Clear birds*, *Load CSV…*. New birds
+  are placed live; the model is rebuilt to drop stale per-N caches. Metrics guard
+  against `N < 2` so mid-placement never crashes `summarize`.
+- `core.init.from_csv` is now reachable from the GUI (Load CSV…).
+
+**Verified** (`tests/test_gui_smoke.py`, extended)
+- Clear → place 5 birds via the canvas callback → steps cleanly (N stays 5).
+- Load 30 birds from a CSV written by `core.init` → steps cleanly.
+- Visual check: 80 birds placed in two groups render blue/orange with headings
+  (`results/gui_placed.png`).
+
 ### 2026-07-27 — Experiment Manager wired into the GUI (spec module 7)
 **Added (in `gui/main_window.py`)**
 - **Experiment** panel: Save config… / Load config… / Screenshot… / ● Record /
@@ -229,8 +245,8 @@ Newest first. Append an entry per increment.
       is 2D. Options: VisPy/OpenGL, or a 2.5D projection in the QPainter canvas.
 - [ ] **Numba / vectorization** — for >~1000 agents at interactive FPS; several
       model `step()` loops are per-agent Python loops.
-- [ ] **CSV/manual init in the GUI** — file-open dialog + click-to-place (the
-      `core.init` hooks exist).
+- [x] **CSV/manual init in the GUI** — done 2026-07-27 (Place mode, place-as-
+      group, Clear, Load CSV…).
 - [ ] **Pandas** for analysis convenience (currently CSV/NumPy only).
 
 ---
@@ -241,5 +257,5 @@ Newest first. Append an entry per increment.
 |---|---|---|
 | Theorem suite | `tests/test_theorems.py` | 13/13 pass |
 | New features | `experiments/demo_new_features.py` | all sections pass |
-| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF |
+| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF, click-to-place, CSV load |
 | Live GUI | `run_gui.py` | pending `libxcb-cursor0` install on user's machine |
