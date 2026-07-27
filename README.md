@@ -115,6 +115,10 @@ departing). Half-adopting the theory is much worse than ignoring it.
 
 ## Install & run
 
+> New to the project? Follow the step-by-step, beginner-friendly
+> **[Getting Started guide](docs/GETTING_STARTED.md)** (Linux/macOS/Windows).
+> The quick version is below.
+
 ```bash
 pip install numpy scipy matplotlib pillow
 

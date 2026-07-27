@@ -48,6 +48,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 
 ## 2. Setup & run
 
+> For a beginner-friendly, cross-platform walkthrough (Linux/macOS/Windows), see
+> **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)**. The notes below are the
+> quick version and mention specifics seen on the original dev machine.
+
 The system Python on this machine (Ubuntu 24.04) is PEP-668 "externally managed"
 and lacks scipy/matplotlib — **use a virtualenv**.
 
