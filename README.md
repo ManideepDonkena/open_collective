@@ -124,7 +124,30 @@ python experiments/exp1_results.py                 # table + figure
 python experiments/exp2_grouping.py                # group maintenance (RESEARCH.md S3)
 python experiments/viz3d_demo.py                   # 3D movies (RESEARCH.md S4)
 python Uav/run_multi_team.py                       # multi-team UAV (RESEARCH.md S5)
+python experiments/demo_new_features.py            # init methods, new metrics, Kuramoto, manager
 ```
+
+## Interactive GUI
+
+A PySide6 front end drives the same headless engine live — real-time parameter
+control, play/pause/step/reset, zoom/pan, and on-canvas trajectories, vision
+cones, and neighbour links, with every measurement read out per frame. The
+physics is unchanged: every step goes through `CollectiveModel.step` and every
+number through `core.metrics`, so what you see is what the batch experiments
+compute.
+
+```bash
+pip install PySide6
+python run_gui.py                                  # or:  python -m gui
+python tests/test_gui_smoke.py                     # headless (offscreen) check + screenshot
+```
+
+The right-hand panel builds a **live slider for every numeric constructor
+argument** of the selected model (introspected from its `__init__`), so all ten
+free-running models — Vicsek, Kuramoto, Boids, Couzin, Cucker–Smale, D'Orsogna,
+Olfati-Saber, Perception (PAPER_1), SlowFast (PAPER_2), Multi-group — are
+tunable without touching code. Structural choices (model, boundary, N, groups,
+initializer) rebuild the run; parameter sliders apply to the running model.
 
 ## Layout
 
@@ -133,14 +156,23 @@ core/
   boundary.py    Periodic / Open / Reflecting. THE central abstraction.
   neighbors.py   metric, topological (k-NN), vision-cone (PAPER_1 geometry)
   metrics.py     order, cohesion AND group-maintenance diagnostics
+                 (+ density, heading_entropy, mean_speed)
   base.py        State, CollectiveModel, run()
+  init.py        initializers: random / cluster / ring / grid / manual / CSV
   viz3d.py       3D rendering: boundary-aware, metrics in-frame
 models/
-  alignment.py   Vicsek, PerceptionQuantum (PAPER_1), SlowFastPerception (PAPER_2)
+  alignment.py   Vicsek, PerceptionQuantum (PAPER_1), SlowFastPerception (PAPER_2),
+                 Kuramoto
   cohesive.py    Boids, Couzin, D'Orsogna, Cucker-Smale, Olfati-Saber
   grouping.py    MultiGroupFlock -- K groups that stay distinct in open space
   formation.py   Displacement, Distance/rigid, Leader-follower, Cyclic pursuit
   consensus.py   DeGroot, Friedkin-Johnsen, SignedFJ, Altafini, GroupConsensus
+experiments/
+  manager.py     registry + config (JSON/YAML) + CSV/HDF5 export + parameter sweep
+gui/
+  canvas.py      QPainter renderer: agents, trails, vision cones, neighbour links
+  main_window.py controls, introspected live sliders, transport, live metrics
+  app.py         entry point (python run_gui.py / python -m gui)
 Uav/
   swarm_sim.py     the original 2D single-team drone sim
   multi_team_3d.py K teams, 3D, open airspace, leader-loss + turbulence
