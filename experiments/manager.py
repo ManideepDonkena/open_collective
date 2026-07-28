@@ -48,7 +48,9 @@ from models import (VicsekModel, PerceptionQuantum, SlowFastPerception,
                     KuramotoModel, BoidsModel, CouzinModel, DOrsognaModel,
                     CuckerSmaleModel, OlfatiSaberModel, MultiGroupFlock,
                     DisplacementFormation, DistanceFormation, LeaderFollower,
-                    CyclicPursuit)
+                    CyclicPursuit, VicsekVectorialNoise, InertialSpinModel,
+                    ActiveBrownianParticles, RunAndTumbleModel,
+                    GregoireChateModel, SzaboModel, SwarmalatorModel)
 
 
 #: config name -> model class. Every entry is a CollectiveModel whose constructor
@@ -64,6 +66,13 @@ MODEL_REGISTRY = {
     "CuckerSmale": CuckerSmaleModel,
     "OlfatiSaber": OlfatiSaberModel,
     "MultiGroupFlock": MultiGroupFlock,
+    "VicsekVectorialNoise": VicsekVectorialNoise,
+    "InertialSpin": InertialSpinModel,
+    "ActiveBrownian": ActiveBrownianParticles,
+    "RunAndTumble": RunAndTumbleModel,
+    "GregoireChate": GregoireChateModel,
+    "Szabo": SzaboModel,
+    "Swarmalator": SwarmalatorModel,
     "DisplacementFormation": DisplacementFormation,
     "DistanceFormation": DistanceFormation,
     "LeaderFollower": LeaderFollower,

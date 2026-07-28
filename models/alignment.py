@@ -332,6 +332,7 @@ class KuramotoModel(CollectiveModel):
 
     name = "Kuramoto"
     cohesive = False
+    two_d_only = True
 
     def __init__(self, boundary, r_max=1.0, K=1.0, eta=0.0, v0=0.5, r_min=0.0,
                  omega_spread=0.0, topological=False, k=7, rng=None):

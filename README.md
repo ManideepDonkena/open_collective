@@ -181,6 +181,8 @@ models/
   grouping.py    MultiGroupFlock -- K groups that stay distinct in open space
   formation.py   Displacement, Distance/rigid, Leader-follower, Cyclic pursuit
   consensus.py   DeGroot, Friedkin-Johnsen, SignedFJ, Altafini, GroupConsensus
+  active.py      Grégoire-Chaté, Vicsek(vectorial noise), Inertial-spin,
+                 Active-Brownian, Run-and-tumble, Szabó, Swarmalator
 experiments/
   manager.py     registry + config (JSON/YAML) + CSV/HDF5 export + parameter sweep
 gui/

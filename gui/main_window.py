@@ -28,9 +28,12 @@ from core.metrics import milling_order, summarize
 from core.neighbors import (metric_neighbors, topological_neighbors,
                             vision_cone_neighbors)
 from experiments import manager
-from models import (BoidsModel, CouzinModel, CuckerSmaleModel, DOrsognaModel,
-                    KuramotoModel, MultiGroupFlock, OlfatiSaberModel,
-                    PerceptionQuantum, SlowFastPerception, VicsekModel)
+from models import (ActiveBrownianParticles, BoidsModel, CouzinModel,
+                    CuckerSmaleModel, DOrsognaModel, GregoireChateModel,
+                    InertialSpinModel, KuramotoModel, MultiGroupFlock,
+                    OlfatiSaberModel, PerceptionQuantum, RunAndTumbleModel,
+                    SlowFastPerception, SwarmalatorModel, SzaboModel,
+                    VicsekModel, VicsekVectorialNoise)
 
 from .canvas import SimCanvas
 
@@ -38,12 +41,19 @@ from .canvas import SimCanvas
 # need adjacency/target matrices and don't belong on a free canvas).
 GUI_MODELS = {
     "Vicsek": VicsekModel,
+    "Vicsek (vectorial noise)": VicsekVectorialNoise,
     "Kuramoto": KuramotoModel,
+    "Inertial spin": InertialSpinModel,
     "Boids": BoidsModel,
     "Couzin": CouzinModel,
     "Cucker-Smale": CuckerSmaleModel,
+    "Grégoire–Chaté": GregoireChateModel,
     "D'Orsogna": DOrsognaModel,
     "Olfati-Saber": OlfatiSaberModel,
+    "Active Brownian": ActiveBrownianParticles,
+    "Run-and-tumble": RunAndTumbleModel,
+    "Szabó (cells)": SzaboModel,
+    "Swarmalator": SwarmalatorModel,
     "Perception (PAPER_1)": PerceptionQuantum,
     "SlowFast (PAPER_2)": SlowFastPerception,
     "Multi-group flock": MultiGroupFlock,
@@ -55,6 +65,10 @@ GUI_TO_KEY = {
     "Couzin": "Couzin", "Cucker-Smale": "CuckerSmale", "D'Orsogna": "DOrsogna",
     "Olfati-Saber": "OlfatiSaber", "Perception (PAPER_1)": "Perception",
     "SlowFast (PAPER_2)": "SlowFast", "Multi-group flock": "MultiGroupFlock",
+    "Vicsek (vectorial noise)": "VicsekVectorialNoise",
+    "Inertial spin": "InertialSpin", "Grégoire–Chaté": "GregoireChate",
+    "Active Brownian": "ActiveBrownian", "Run-and-tumble": "RunAndTumble",
+    "Szabó (cells)": "Szabo", "Swarmalator": "Swarmalator",
 }
 KEY_TO_GUI = {v: k for k, v in GUI_TO_KEY.items()}
 
@@ -357,11 +371,11 @@ class MainWindow(QtWidgets.QMainWindow):
         name = self.model_cb.currentText()
         cls = GUI_MODELS[name]
         dim = 3 if self.dim_cb.currentText() == "3D" else 2
-        if cls is KuramotoModel and dim == 3:            # Kuramoto is a 2D phase model
+        if getattr(cls, "two_d_only", False) and dim == 3:   # angle/phase models are 2D
             dim = 2
             self.dim_cb.blockSignals(True); self.dim_cb.setCurrentText("2D")
             self.dim_cb.blockSignals(False)
-            self.statusBar().showMessage("Kuramoto is 2D-only — using 2D.", 4000)
+            self.statusBar().showMessage(f"{name} is 2D-only — using 2D.", 4000)
         self.boundary = make_boundary(kind, L, dim)
         self.r_link = 1.0
         n = int(self.N_sb.value())

@@ -73,6 +73,9 @@ class CollectiveModel(ABC):
     #: will disperse under OpenBoundary -- and its periodic-box results are
     #: therefore contingent on the walls.
     cohesive: bool = False
+    #: True for models whose update is intrinsically 2D (a heading ANGLE or phase),
+    #: so they cannot run in 3D. Consumers (e.g. the GUI) should keep them at dim=2.
+    two_d_only: bool = False
 
     def __init__(self, boundary: Boundary, rng: np.random.Generator | None = None):
         self.boundary = boundary

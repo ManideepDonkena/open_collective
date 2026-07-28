@@ -25,7 +25,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | # | Spec module | State | Notes |
 |---|---|---|---|
 | 1 | Simulation Engine | ✅ | `State` + `CollectiveModel` + `run()`; periodic/open/reflecting boundary; metric/topological/vision-cone neighbours. Array-based (not per-`Bird` objects) — a perf choice, not a gap. |
-| 2 | Model Library | ✅ | 10 free-running models incl. **Kuramoto** (added). Custom models = subclass `CollectiveModel`. Missing named model: **"Mind-Flock"** (dynamics TBD from user). |
+| 2 | Model Library | ✅ | **17 free-running models in the GUI, 21 in the registry** — Vicsek (+vectorial noise), Kuramoto, Inertial-spin, Boids, Couzin, Cucker–Smale, Grégoire–Chaté, D'Orsogna, Olfati-Saber, Active-Brownian, Run-and-tumble, Szabó, Swarmalator, Perception, SlowFast, Multi-group (+ formation/consensus). Custom = subclass `CollectiveModel`. Only unresolved name: **"Mind-Flock"** (no equations given). |
 | 3 | Initialization | ✅ | `core/init.py`: random / cluster / ring / grid / manual / CSV. Group-aware. |
 | 4 | Parameter Control | ✅ | GUI exposes a **live slider per numeric constructor arg** of the selected model (introspected). Structural params (N, boundary, init) rebuild; others apply live. |
 | 5 | Visualization | ✅ | Interactive **2D and 3D** canvas: play/pause/step/reset, zoom/pan, drag-to-rotate (3D), trails, neighbour links, group colours, live metrics, boundary box/cube. (Vision cones are drawn in 2D only.) |
@@ -149,6 +149,29 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 ## 4. Update log
 
 Newest first. Append an entry per increment.
+
+### 2026-07-27 — Seven new models from the literature (`models/active.py`)
+**Added** (each with a paper reference, honest `cohesive` flag, boundary-aware):
+- **Vicsek (vectorial noise)** — Chaté et al. 2008 (extrinsic noise).
+- **Inertial spin** — Cavagna et al. 2015 (spin/inertia, turn waves). 2D.
+- **Active Brownian particles** — Fily & Marchetti 2012 (rotational diffusion +
+  soft repulsion → MIPS). 2D.
+- **Run-and-tumble** — bacterial motility. 2D.
+- **Grégoire–Chaté** — 2004 cohesive Vicsek (alignment + body force). `cohesive`.
+- **Szabó** — 2006 self-propelled cells (repulsion/adhesion + polarity relaxation).
+  2D, `cohesive`.
+- **Swarmalator** — O'Keeffe–Hong–Strogatz 2017 (coupled position + phase). 2D,
+  `cohesive`.
+- Base gains a `two_d_only` flag (angle/phase models); the GUI 3D guard now uses
+  it generically. Registered in the GUI (17 models), the manager registry (21),
+  and `models/__init__`.
+
+**Verified**
+- All 17 GUI models step 30× cleanly; 2D-only models auto-kept at 2D.
+- **Physics sanity**: in open space Vicsek's R_g grows **4.5×** while Grégoire–
+  Chaté **0.18×** and Swarmalator **0.20×** (they cohere); inertial spin orders
+  (M **0.10 → 1.00**); vectorial-noise Vicsek and Grégoire–Chaté also run in 3D.
+- **13/13 theorem tests still pass.**
 
 ### 2026-07-27 — MP4 export, pandas layer, vectorised Vicsek
 **Added**
@@ -323,5 +346,6 @@ entropy down, mean speed flat, milling correctly "n/a" on the torus).
 |---|---|---|
 | Theorem suite | `tests/test_theorems.py` | 13/13 pass |
 | New features | `experiments/demo_new_features.py` | all sections pass |
-| GUI (headless) | `tests/test_gui_smoke.py` | 10/10 models, screenshot, config round-trip, CSV/HDF5 export, GIF, metrics plot, parameter sweep, click-to-place, CSV load, 3D render |
+| GUI (headless) | `tests/test_gui_smoke.py` | 17/17 models, screenshot, config round-trip, CSV/HDF5 export, GIF, MP4, metrics plot, parameter sweep, click-to-place, CSV load, 3D render |
+| New models | physics sanity (this session) | open-space cohesion + ordering checks pass |
 | Live GUI | `run_gui.py` | pending `libxcb-cursor0` install on user's machine |
