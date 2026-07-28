@@ -150,10 +150,14 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 
 Newest first. Append an entry per increment.
 
-### 2026-07-28 — In-app explanations (tooltips + model descriptions)
+### 2026-07-28 — In-app explanations (tooltips + model descriptions + Help guide)
 **Added (in `gui/main_window.py`)**
 - Help dictionaries `MODEL_HELP`, `PARAM_HELP`, `METRIC_HELP`, `SETUP_HELP`,
   `DISPLAY_HELP`, `BUTTON_HELP`.
+- A **❓ Help & guide** button opening a scrollable QTextBrowser dialog
+  (`_build_help_html`) — a 4-step quick start, canvas navigation, and full tables
+  of every model, control, measurement, and parameter, all generated from the
+  help dicts so it never drifts (`results/gui_help_dialog.png`).
 - **Hover tooltips** on every control: setup fields, the introspected model
   parameters (label + slider), display toggles, transport/experiment/initial-
   condition buttons, and each live measurement.

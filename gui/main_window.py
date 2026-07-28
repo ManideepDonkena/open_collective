@@ -366,6 +366,12 @@ class MainWindow(QtWidgets.QMainWindow):
         panel.setFixedWidth(320)
         pl = QtWidgets.QVBoxLayout(panel)
 
+        # --- help ---
+        help_btn = QtWidgets.QPushButton("❓  Help && guide")
+        help_btn.setToolTip("Open a full explanation of the app, the models, and every control.")
+        help_btn.clicked.connect(self._show_help)
+        pl.addWidget(help_btn)
+
         # --- setup group (structural: change => reset) ---
         setup = QtWidgets.QGroupBox("Setup")
         form = QtWidgets.QFormLayout(setup)
@@ -948,6 +954,77 @@ class MainWindow(QtWidgets.QMainWindow):
         FigureCanvasAgg(fig)                     # attach an offscreen canvas
         fig.savefig(str(save_path), dpi=120)
         return True
+
+    # -- help / guide -----------------------------------------------------
+    @staticmethod
+    def _help_rows(mapping):
+        return "".join(
+            f"<tr><td valign='top'><b>{k}</b></td><td>{v}</td></tr>"
+            for k, v in mapping.items())
+
+    def _build_help_html(self):
+        t = "<table cellspacing='0' cellpadding='4'>{}</table>".format
+        metric_labeled = {lab: METRIC_HELP[key] for key, lab in _METRIC_ROWS
+                          if key in METRIC_HELP}
+        return f"""
+        <h2>open-collective — BirdFlockLab</h2>
+        <p>An interactive lab for <i>collective motion</i>: pick a model, watch a
+        flock evolve, measure it, and export the results. Nothing here changes the
+        physics — every number you see is what the underlying engine computes.</p>
+
+        <h3>Get a result in four steps</h3>
+        <ol>
+          <li><b>Choose a model</b> and a <b>boundary</b> in the Setup box (its
+              description appears just below).</li>
+          <li>Press <b>Play</b> (or <b>Step</b>) to run it. Drag the sliders to
+              change parameters live.</li>
+          <li>Press <b>● Record</b>, let it run, then <b>Plot metrics</b> or
+              <b>Export</b> to save the data.</li>
+          <li><b>Sweep</b> re-runs it while one parameter changes and plots how a
+              measurement responds.</li>
+        </ol>
+
+        <h3>Canvas</h3>
+        <p>Each agent is a dot with a short line for its heading. <b>Scroll</b> to
+        zoom; <b>drag</b> to move the view in 2D or to rotate it in 3D. In
+        <i>Place mode</i> a click adds an agent (2D).</p>
+
+        <h3>Models</h3>
+        {t(self._help_rows(MODEL_HELP))}
+
+        <h3>Setup</h3>
+        {t(self._help_rows(SETUP_HELP))}
+
+        <h3>Display overlays</h3>
+        {t(self._help_rows(DISPLAY_HELP))}
+
+        <h3>Experiment — record, export, analyse</h3>
+        {t(self._help_rows(BUTTON_HELP))}
+
+        <h3>Measurements (live, top-right)</h3>
+        {t(self._help_rows(metric_labeled))}
+
+        <h3>Model parameters</h3>
+        <p>Each model shows sliders for its own parameters; the panel builds them
+        automatically. Common ones:</p>
+        {t(self._help_rows(PARAM_HELP))}
+
+        <p style='color:gray'>Tip: hover any control in the app for the same help
+        as a pop-up tooltip.</p>
+        """
+
+    def _show_help(self):
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("Help & guide")
+        dlg.resize(640, 720)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        view = QtWidgets.QTextBrowser()
+        view.setOpenExternalLinks(True)
+        view.setHtml(self._build_help_html())
+        QtWidgets.QVBoxLayout(dlg).addWidget(view)
+        dlg.show()
+        self._open_dialogs = getattr(self, "_open_dialogs", [])
+        self._open_dialogs.append(dlg)
 
     def _show_figure(self, fig, title, size=(860, 560)):
         """Show a matplotlib Figure in a non-modal Qt dialog."""
