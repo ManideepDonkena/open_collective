@@ -150,6 +150,20 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 
 Newest first. Append an entry per increment.
 
+### 2026-07-28 — In-app explanations (tooltips + model descriptions)
+**Added (in `gui/main_window.py`)**
+- Help dictionaries `MODEL_HELP`, `PARAM_HELP`, `METRIC_HELP`, `SETUP_HELP`,
+  `DISPLAY_HELP`, `BUTTON_HELP`.
+- **Hover tooltips** on every control: setup fields, the introspected model
+  parameters (label + slider), display toggles, transport/experiment/initial-
+  condition buttons, and each live measurement.
+- A **plain-language model description** label under the Setup box that updates
+  when the model changes (e.g. Couzin → "repel very close, align at mid-range,
+  attract far…").
+
+**Verified** — tooltips present and the description updates per model
+(`results/gui_help_panel.png`); GUI still builds and all models step.
+
 ### 2026-07-27 — Seven new models from the literature (`models/active.py`)
 **Added** (each with a paper reference, honest `cohesive` flag, boundary-aware):
 - **Vicsek (vectorial noise)** — Chaté et al. 2008 (extrinsic noise).

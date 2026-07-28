@@ -149,6 +149,11 @@ python tests/test_gui_smoke.py           # saves results/gui_smoke.png
 
 The picture of the birds is on the **left**. The buttons are on the **right**.
 
+> **Not sure what something does?** Hover your mouse over any control, slider,
+> button, or measurement and a short explanation pops up. A one-line description
+> of the selected model is always shown just under the Setup box.
+
+
 - **Setup** (top): pick the *model*, the *boundary* (periodic, open, or
   reflecting), how the birds *start* (random, cluster, ring, grid), how *many*
   birds, how many *groups*, their *speed*, and the *time step*. Changing any of

@@ -72,6 +72,170 @@ GUI_TO_KEY = {
 }
 KEY_TO_GUI = {v: k for k, v in GUI_TO_KEY.items()}
 
+# --------------------------------------------------------------------------
+# Explanatory help text (shown as tooltips / a model-description label)
+# --------------------------------------------------------------------------
+MODEL_HELP = {
+    "Vicsek": "Classic flocking: each agent turns toward the average heading of "
+              "neighbours within a radius, plus noise. Alignment-only, so it "
+              "disperses in open space.",
+    "Vicsek (vectorial noise)": "Vicsek where the noise is added to the neighbour "
+              "vector-sum (measurement error). Gives a sharper, first-order "
+              "order–disorder transition.",
+    "Kuramoto": "Coupled phase oscillators: headings synchronise like coupled "
+              "clocks. The sync order parameter equals the flocking order.",
+    "Inertial spin": "Vicsek plus turning inertia (a 'spin'): flocks turn together "
+              "and turn information propagates as spin waves (Cavagna 2015).",
+    "Boids": "Reynolds' three rules — separation (avoid crowding), alignment "
+              "(match heading), and cohesion (steer to the group centre).",
+    "Couzin": "Zonal model: repel very close, align at mid-range, attract far. "
+              "Produces swarms, tori (mills), and moving flocks.",
+    "Cucker-Smale": "Everyone follows a weighted average of all others; a falloff "
+              "exponent β ≤ 0.5 guarantees the flock never breaks apart.",
+    "Grégoire–Chaté": "Vicsek plus an attraction/repulsion body force — a cohesive "
+              "flock that stays together even in open space (2004).",
+    "D'Orsogna": "Self-propelled particles with a Morse potential; shows mills, "
+              "rings, and collapsed clumps depending on the parameters.",
+    "Olfati-Saber": "Flocking control law with a smooth potential and navigation "
+              "feedback (used in robotics/UAV swarms).",
+    "Active Brownian": "No alignment at all — self-propelled particles that only "
+              "repel. They still clump via motility-induced phase separation.",
+    "Run-and-tumble": "Bacterial motion: run straight for a while, then randomly "
+              "reorient ('tumble'). Optional soft repulsion.",
+    "Szabó (cells)": "Self-propelled biological cells: repel/adhere to neighbours, "
+              "and slowly steer toward their actual direction of motion.",
+    "Swarmalator": "Agents whose position and internal phase (shown as colour) "
+              "affect each other — clustering coupled with synchronisation.",
+    "Perception (PAPER_1)": "Quantum-inspired perception operator over a forward "
+              "vision cone (Beuria, Chaurasiya & Behera).",
+    "SlowFast (PAPER_2)": "Two-timescale perception with a slow memory register "
+              "that makes the flock's response history-dependent (Beuria).",
+    "Multi-group flock": "K groups that stay distinct: in-group Cucker–Smale "
+              "cohesion plus out-group repulsion (segregation).",
+}
+
+# Parameter name -> one-line explanation. Falls back to the raw name if absent.
+PARAM_HELP = {
+    "r_max": "Interaction radius — how far an agent senses neighbours.",
+    "r_min": "Inner radius — neighbours closer than this are ignored.",
+    "eta": "Noise strength — higher means more random, less ordered motion.",
+    "v0": "Cruising speed of each agent.",
+    "k": "Number of nearest neighbours used (topological interaction).",
+    "topological": "Interact with the k nearest neighbours instead of all within a radius.",
+    "fast": "Faster vectorised update — same result, quicker for many agents.",
+    "K": "Coupling / interaction strength.",
+    "sigma": "Interaction length scale (also the particle size for repulsion).",
+    "beta": "Interaction falloff exponent (Cucker–Smale: ≤ 0.5 guarantees flocking).",
+    "lam": "Interaction gain.",
+    "lam_in": "In-group interaction gain.",
+    "kappa": "Coupling gain.",
+    "alpha": "Vision-cone angle (radians) the agent can see.",
+    "chi": "Turning inertia — resistance to changing heading (inertial spin).",
+    "J": "Alignment / coupling strength.",
+    "Dr": "Rotational diffusion — how fast headings drift randomly.",
+    "k_rep": "Repulsion stiffness — how hard agents push apart when overlapping.",
+    "mu": "Mobility — how strongly forces translate into motion.",
+    "tumble_rate": "How often an agent randomly reorients (tumbles).",
+    "tau": "Relaxation time — how quickly heading follows actual motion.",
+    "F_rep": "Repulsion force strength.",
+    "F_adh": "Adhesion (stickiness) force strength.",
+    "r_eq": "Preferred spacing — the force is zero at this distance.",
+    "r_0": "Interaction cutoff distance.",
+    "r_c": "Hard-core radius — strong repulsion below this.",
+    "r_e": "Equilibrium distance where attraction and repulsion balance.",
+    "r_a": "Distance beyond which attraction saturates.",
+    "f_rep": "Hard-core repulsion strength.",
+    "A": "Spatial attraction strength.",
+    "B": "Spatial repulsion strength.",
+    "Ca": "Morse attraction strength.", "la": "Morse attraction length.",
+    "Cr": "Morse repulsion strength.", "lr": "Morse repulsion length.",
+    "cutoff": "Maximum interaction distance (blank = all pairs).",
+    "zor": "Zone-of-repulsion radius (Couzin).",
+    "zoo": "Zone-of-orientation radius (Couzin).",
+    "zoa": "Zone-of-attraction radius (Couzin).",
+    "blind": "Rear blind-angle the agent cannot see (radians).",
+    "theta_dot_max": "Maximum turning rate.",
+    "w_sep": "Weight of the separation rule.",
+    "w_ali": "Weight of the alignment rule.",
+    "w_coh": "Weight of the cohesion rule.",
+    "r_sep": "Separation radius.", "r_ali": "Alignment radius.", "r_coh": "Cohesion radius.",
+    "vmax": "Maximum speed.", "fmax": "Maximum acceleration (force clip).",
+    "w_sep2": "Short-range separation weight.",
+    "w_seg": "Out-group repulsion (segregation) weight.",
+    "r_sep2": "Short-range separation radius.", "r_seg": "Out-group repulsion radius.",
+    "w_global": "Weak pull toward the global centre (keeps groups in one arena).",
+    "k_speed": "How strongly the cruising speed is enforced.",
+    "switching": "Let agents change group allegiance dynamically.",
+    "chi_": "Turning inertia.",
+    "Gamma": "Damping of the perceptual field.",
+    "T1": "Longitudinal relaxation time (memory).",
+    "T2": "Transverse relaxation time.",
+    "gamma_s": "Slow-register update rate.",
+    "lam_fb": "Feedback strength of the slow register.",
+    "rho": "Self-weight in the heading update.",
+    "tau_p": "Perceptual time constant.",
+    "s_eq": "Slow-register set-point.",
+    "h_ext": "External bias field.",
+    "d": "Desired inter-agent spacing (Olfati-Saber).",
+    "kappa_ratio": "Interaction range / spacing ratio.",
+    "eps": "Bump-function smoothing.",
+    "h": "Bump-function shape parameter.",
+    "a": "Attraction gain of the action function.",
+    "b_": "Repulsion gain of the action function.",
+    "c1_a": "Position feedback (flocking).", "c2_a": "Velocity feedback (flocking).",
+    "c1_g": "Position feedback (navigation).", "c2_g": "Velocity feedback (navigation).",
+    "omega_spread": "Spread of intrinsic turning rates (Kuramoto).",
+}
+
+# Measurement key -> explanation.
+METRIC_HELP = {
+    "t": "Simulation time elapsed.",
+    "polar_order": "Alignment, 0–1: 1 means every agent heads the same way.",
+    "milling": "Rotation, 0–1: 1 is a spinning mill (open/reflecting boundary only).",
+    "radius_of_gyration": "How spread out the group is around its centre.",
+    "n_fragments": "How many separate clusters exist (1 = a single flock).",
+    "largest_cluster_frac": "Fraction of agents in the biggest cluster.",
+    "mean_neighbors": "Average number of neighbours per agent.",
+    "density": "Agents per unit area (2D) or volume (3D).",
+    "heading_entropy": "Heading disorder, 0–1: 0 = aligned, 1 = fully random.",
+    "mean_speed": "Average agent speed.",
+    "fps": "Animation speed (frames per second).",
+}
+
+SETUP_HELP = {
+    "model": "The collective-motion model to simulate (hover the description below).",
+    "boundary": "periodic = wrap-around torus; open = infinite space; reflecting = walls.",
+    "view": "Flat 2D view, or a rotatable 3D view (drag to rotate).",
+    "box L": "Side length of the box (periodic/reflecting boundaries).",
+    "init": "How agents start: random, clustered, on a ring, or on a grid.",
+    "N": "Number of agents.",
+    "groups": "Number of coloured groups / species.",
+    "speed": "Initial speed of the agents.",
+    "dt": "Time step per frame — smaller is more accurate but slower.",
+}
+DISPLAY_HELP = {
+    "trajectories": "Draw fading trails behind each agent.",
+    "vision cones": "Show each agent's field of view (2D; models with a vision cone).",
+    "neighbour links": "Draw a line between every pair of interacting agents.",
+    "group colours": "Colour agents by their group.",
+}
+BUTTON_HELP = {
+    "Save config…": "Save all current settings to a file to reload or re-run later.",
+    "Load config…": "Load settings from a saved config file.",
+    "Screenshot…": "Save a picture of the canvas as a PNG.",
+    "Export metrics…": "Save the recorded measurements as a CSV (needs a recording).",
+    "Export trajectory…": "Save every agent's path as CSV or HDF5 (needs a recording).",
+    "Plot metrics…": "Show charts of the recorded measurements over time.",
+    "Sweep…": "Re-run the experiment while one parameter changes, and plot the result.",
+    "Save GIF…": "Record a short animated GIF (choose length and speed).",
+    "Save MP4…": "Record a video (choose length, frames-per-second, and quality).",
+    "Place mode": "Turn on, then click the canvas to add agents by hand (2D only).",
+    "Clear birds": "Remove all agents from the canvas.",
+    "Load CSV…": "Load a starting arrangement of agents from a CSV file.",
+    "● Record": "Start/stop capturing each frame (its measurements and positions) "
+                "so you can export or plot them.",
+}
+
 # Numeric observables recorded per frame while "Record" is on (for CSV/HDF5 export).
 _RECORD_KEYS = ["polar_order", "radius_of_gyration", "nn_distance", "n_fragments",
                 "largest_cluster_frac", "mean_neighbors", "density",
@@ -222,8 +386,18 @@ class MainWindow(QtWidgets.QMainWindow):
                        ("init", self.init_cb), ("N", self.N_sb),
                        ("groups", self.groups_sb), ("speed", self.speed_sb),
                        ("dt", self.dt_sb)]:
-            form.addRow(lab, w)
+            tip = SETUP_HELP.get(lab, "")
+            w.setToolTip(tip)
+            lw = QtWidgets.QLabel(lab); lw.setToolTip(tip)
+            form.addRow(lw, w)
         pl.addWidget(setup)
+
+        # a plain-language description of the selected model (updates on change)
+        self.model_desc = QtWidgets.QLabel()
+        self.model_desc.setWordWrap(True)
+        self.model_desc.setStyleSheet("color: palette(mid); font-size: 11px;"
+                                      "padding: 2px 2px 6px 2px;")
+        pl.addWidget(self.model_desc)
 
         self.model_cb.currentIndexChanged.connect(self._on_model_changed)
         for w in (self.boundary_cb, self.init_cb, self.dim_cb):
@@ -244,6 +418,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.play_btn.toggled.connect(self._on_play)
         self.step_btn.clicked.connect(self._tick)
         self.reset_btn.clicked.connect(self._reset)
+        self.play_btn.setToolTip("Run or pause the simulation.")
+        self.step_btn.setToolTip("Advance the simulation by a single frame.")
+        self.reset_btn.setToolTip("Rebuild the simulation with the current settings.")
 
         # --- display toggles ---
         disp = QtWidgets.QGroupBox("Display")
@@ -254,6 +431,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_groups = QtWidgets.QCheckBox("group colours"); self.cb_groups.setChecked(True)
         for i, cb in enumerate((self.cb_trails, self.cb_cones, self.cb_links, self.cb_groups)):
             dl.addWidget(cb, i // 2, i % 2)
+            cb.setToolTip(DISPLAY_HELP.get(cb.text(), ""))
             cb.toggled.connect(self._apply_display)
         pl.addWidget(disp)
 
@@ -277,6 +455,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.place_btn.toggled.connect(self._toggle_place)
         self.clear_btn.clicked.connect(self._clear_birds)
         self.loadcsv_btn.clicked.connect(self._load_csv)
+        self.place_btn.setToolTip(BUTTON_HELP["Place mode"])
+        self.clear_btn.setToolTip(BUTTON_HELP["Clear birds"])
+        self.loadcsv_btn.setToolTip(BUTTON_HELP["Load CSV…"])
+        self.place_group_sb.setToolTip("Which group / colour newly placed agents get.")
 
         # --- experiment manager (config / export / capture) ---
         exp = QtWidgets.QGroupBox("Experiment")
@@ -292,6 +474,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i, (item, slot) in enumerate(buttons):
             btn = item if isinstance(item, QtWidgets.QPushButton) else QtWidgets.QPushButton(item)
             (btn.toggled if btn.isCheckable() else btn.clicked).connect(slot)
+            btn.setToolTip(BUTTON_HELP.get(btn.text(), ""))
             eg.addWidget(btn, i // 2, i % 2)
         self.rec_status = QtWidgets.QLabel("not recording")
         eg.addWidget(self.rec_status, (len(buttons) + 1) // 2, 0, 1, 2)
@@ -302,9 +485,11 @@ class MainWindow(QtWidgets.QMainWindow):
         ml = QtWidgets.QFormLayout(met)
         self.metric_labels = {}
         for key, lab in _METRIC_ROWS:
-            v = QtWidgets.QLabel("—")
+            tip = METRIC_HELP.get(key, "")
+            v = QtWidgets.QLabel("—"); v.setToolTip(tip)
             self.metric_labels[key] = v
-            ml.addRow(lab, v)
+            ll = QtWidgets.QLabel(lab); ll.setToolTip(tip)
+            ml.addRow(ll, v)
         pl.addWidget(met)
         pl.addStretch(1)
 
@@ -332,8 +517,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 lo, hi = _range_for(default)
                 w = FloatSlider(lo, hi, default)
                 w.valueChanged.connect(self._apply_params)
+            tip = PARAM_HELP.get(name, f"Model parameter '{name}'.")
+            w.setToolTip(tip)
+            if isinstance(w, FloatSlider):
+                w.slider.setToolTip(tip); w.readout.setToolTip(tip)
             self.param_widgets[name] = (w, kind)
-            self.param_form.addRow(name, w)
+            lw = QtWidgets.QLabel(name); lw.setToolTip(tip)
+            self.param_form.addRow(lw, w)
+        self.model_desc.setText(MODEL_HELP.get(self.model_cb.currentText(), ""))
         self._reset()
 
     def _param_values(self):
