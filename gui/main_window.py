@@ -72,6 +72,53 @@ GUI_TO_KEY = {
 }
 KEY_TO_GUI = {v: k for k, v in GUI_TO_KEY.items()}
 
+# The model shown on first launch — a cohesive flock that visibly groups on any
+# boundary, so the app opens on obvious collective behaviour rather than on
+# alignment-only Vicsek (which stays a uniform gas and looks like "nothing").
+DEFAULT_MODEL = "Grégoire–Chaté"
+
+# --------------------------------------------------------------------------
+# Per-model presets — a starting point that puts each model in a regime where
+# its collective behaviour is visible. Applied whenever the model is selected.
+# Each entry may set any of: boundary, init, groups, n, L, speed, and a `params`
+# dict of constructor-argument overrides. Anything omitted keeps the GUI value /
+# the model's own default. The physics rationale (measured, N=150, 400 steps):
+#   * alignment-only models (Vicsek/Kuramoto/spin) DISPERSE in open space, so
+#     they get a periodic box where they order into a moving band;
+#   * cohesive models (Boids/Couzin/Grégoire–Chaté/…) look best as a compact
+#     flock in open space, and several need initial connectivity, hence a
+#     `cluster` start;
+#   * D'Orsogna forms a rotating mill, Multi-group segregates into K flocks,
+#     Active Brownian needs a higher Péclet number + density to phase-separate.
+# --------------------------------------------------------------------------
+MODEL_PRESETS = {
+    # -- alignment-only: order on a torus, disperse in open space -----------
+    "Vicsek": {"boundary": "periodic", "params": {"eta": 0.15}},
+    "Vicsek (vectorial noise)": {"boundary": "periodic", "params": {"eta": 0.3}},
+    "Kuramoto": {"boundary": "periodic"},
+    "Inertial spin": {"boundary": "periodic"},
+    # -- cohesive: compact moving flock in open space -----------------------
+    "Grégoire–Chaté": {"boundary": "open", "init": "random"},
+    "Boids": {"boundary": "open", "init": "cluster",
+              "params": {"w_ali": 2.0, "w_coh": 1.5, "r_coh": 5.0, "v0": 0.35}},
+    "Couzin": {"boundary": "open", "init": "cluster",
+               "params": {"zoo": 4.0, "zoa": 8.0}},
+    "Cucker-Smale": {"boundary": "open", "init": "cluster"},
+    "D'Orsogna": {"boundary": "open"},              # forms a rotating mill/ring
+    "Olfati-Saber": {"boundary": "periodic", "init": "cluster"},
+    # -- active / no explicit alignment -------------------------------------
+    "Active Brownian": {"boundary": "periodic", "n": 250, "L": 7.0,
+                        "params": {"v0": 2.0, "Dr": 0.05, "k_rep": 20.0}},
+    "Run-and-tumble": {"boundary": "periodic"},     # diffusive: won't cluster much
+    "Szabó (cells)": {"boundary": "open", "init": "cluster"},
+    "Swarmalator": {"boundary": "open", "init": "cluster"},
+    # -- perception / vision-cone -------------------------------------------
+    "Perception (PAPER_1)": {"boundary": "periodic"},
+    "SlowFast (PAPER_2)": {"boundary": "periodic"},
+    # -- multi-group: K segregated flocks -----------------------------------
+    "Multi-group flock": {"boundary": "reflecting", "init": "cluster", "groups": 3},
+}
+
 # --------------------------------------------------------------------------
 # Explanatory help text (shown as tooltips / a model-description label)
 # --------------------------------------------------------------------------
@@ -354,7 +401,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self._tick)
 
         self._build_ui()
-        self._on_model_changed()     # builds params + first reset
+        self.model_cb.blockSignals(True)
+        self.model_cb.setCurrentText(DEFAULT_MODEL)   # open on a visibly-grouping model
+        self.model_cb.blockSignals(False)
+        self._on_model_changed()     # builds params + applies preset + first reset
 
     # -- UI ---------------------------------------------------------------
     def _build_ui(self):
@@ -378,7 +428,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.model_cb = QtWidgets.QComboBox(); self.model_cb.addItems(GUI_MODELS)
         self.boundary_cb = QtWidgets.QComboBox()
         self.boundary_cb.addItems(["periodic", "open", "reflecting"])
-        self.boundary_cb.setCurrentText("open")
+        self.boundary_cb.setCurrentText("periodic")
         self.dim_cb = QtWidgets.QComboBox(); self.dim_cb.addItems(["2D", "3D"])
         self.L_sb = QtWidgets.QDoubleSpinBox(); self.L_sb.setRange(1, 200); self.L_sb.setValue(10.0)
         self.init_cb = QtWidgets.QComboBox()
@@ -422,11 +472,26 @@ class MainWindow(QtWidgets.QMainWindow):
         row.addWidget(self.play_btn); row.addWidget(self.step_btn); row.addWidget(self.reset_btn)
         pl.addLayout(row)
         self.play_btn.toggled.connect(self._on_play)
-        self.step_btn.clicked.connect(self._tick)
+        self.step_btn.clicked.connect(self._step_once)
         self.reset_btn.clicked.connect(self._reset)
         self.play_btn.setToolTip("Run or pause the simulation.")
-        self.step_btn.setToolTip("Advance the simulation by a single frame.")
+        self.step_btn.setToolTip("Advance the simulation by a single step (dt).")
         self.reset_btn.setToolTip("Rebuild the simulation with the current settings.")
+
+        # simulation speed: how many model steps to compute per displayed frame.
+        # Ordering/flocking takes O(100+) steps; at 1 step/frame that is many
+        # seconds of watching, so default to several steps per frame.
+        srow = QtWidgets.QHBoxLayout()
+        lbl = QtWidgets.QLabel("speed (steps/frame)")
+        self.sim_speed_sb = QtWidgets.QSpinBox()
+        self.sim_speed_sb.setRange(1, 50)
+        self.sim_speed_sb.setValue(4)
+        tip = ("How many simulation steps are computed per displayed frame. "
+               "Higher = the flock reaches its collective state faster (the "
+               "physics is unchanged; you just skip ahead in time per frame).")
+        lbl.setToolTip(tip); self.sim_speed_sb.setToolTip(tip)
+        srow.addWidget(lbl); srow.addWidget(self.sim_speed_sb, 1)
+        pl.addLayout(srow)
 
         # --- display toggles ---
         disp = QtWidgets.QGroupBox("Display")
@@ -510,17 +575,25 @@ class MainWindow(QtWidgets.QMainWindow):
         while self.param_form.rowCount():
             self.param_form.removeRow(0)
         self.param_widgets = {}
-        cls = GUI_MODELS[self.model_cb.currentText()]
+        label = self.model_cb.currentText()
+        cls = GUI_MODELS[label]
+        preset_params = MODEL_PRESETS.get(label, {}).get("params", {})
         for name, kind, default in _numeric_params(cls):
+            pv = preset_params.get(name)      # widen the slider so a preset fits
             if kind == "bool":
                 w = QtWidgets.QCheckBox(); w.setChecked(default)
                 w.toggled.connect(self._apply_params)
             elif kind == "int":
-                w = QtWidgets.QSpinBox(); lo, hi = _range_for(default)
+                lo, hi = _range_for(default)
+                if pv is not None:
+                    hi = max(hi, int(pv)); lo = min(lo, int(pv))
+                w = QtWidgets.QSpinBox()
                 w.setRange(int(lo), max(1, int(hi))); w.setValue(default)
                 w.valueChanged.connect(self._apply_params)
             else:
                 lo, hi = _range_for(default)
+                if pv is not None:
+                    hi = max(hi, float(pv)); lo = min(lo, float(pv))
                 w = FloatSlider(lo, hi, default)
                 w.valueChanged.connect(self._apply_params)
             tip = PARAM_HELP.get(name, f"Model parameter '{name}'.")
@@ -530,8 +603,54 @@ class MainWindow(QtWidgets.QMainWindow):
             self.param_widgets[name] = (w, kind)
             lw = QtWidgets.QLabel(name); lw.setToolTip(tip)
             self.param_form.addRow(lw, w)
-        self.model_desc.setText(MODEL_HELP.get(self.model_cb.currentText(), ""))
+        self.model_desc.setText(MODEL_HELP.get(label, ""))
+        self._apply_preset(label)     # good boundary/init/params for this model
         self._reset()
+
+    def _apply_preset(self, label):
+        """Apply the model's preset: set structural fields (signals blocked so we
+        rebuild exactly once, in the caller's _reset) and its tuned parameters.
+
+        Presets are absolute, not incremental: every structural field is first
+        set to a shared baseline, then the preset overrides on top. That way an
+        override from a previous model (e.g. Active Brownian's larger N) never
+        leaks into the next model the user selects."""
+        if self._loading:       # a saved config is being restored verbatim
+            return
+        preset = MODEL_PRESETS.get(label)
+        if not preset:
+            return
+        eff = {"boundary": "periodic", "init": "random", "groups": 1,
+               "n": 150, "L": 10.0, "speed": 0.5, **preset}
+        structural = [
+            ("boundary", self.boundary_cb, lambda w, v: w.setCurrentText(str(v))),
+            ("init", self.init_cb, lambda w, v: w.setCurrentText(str(v))),
+            ("groups", self.groups_sb, lambda w, v: w.setValue(int(v))),
+            ("n", self.N_sb, lambda w, v: w.setValue(int(v))),
+            ("L", self.L_sb, lambda w, v: w.setValue(float(v))),
+            ("speed", self.speed_sb, lambda w, v: w.setValue(float(v))),
+        ]
+        for key, widget, setter in structural:
+            widget.blockSignals(True)
+            setter(widget, eff[key])
+            widget.blockSignals(False)
+        for name, val in preset.get("params", {}).items():
+            entry = self.param_widgets.get(name)
+            if entry is None:
+                continue
+            w, kind = entry
+            if kind == "bool":
+                w.setChecked(bool(val))
+            elif kind == "int":
+                w.setValue(int(val))
+            else:
+                w.set_value(float(val))
+        bits = [preset[k] for k in ("boundary", "init") if k in preset]
+        if preset.get("params"):
+            bits.append("tuned params")
+        if bits:
+            self.statusBar().showMessage(
+                f"{label} preset — " + ", ".join(str(b) for b in bits), 5000)
 
     def _param_values(self):
         out = {}
@@ -612,10 +731,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self._last_tick = time.perf_counter()
         (self.timer.start if on else self.timer.stop)()
 
+    def _step_once(self):
+        """The Step button: advance exactly one simulation step (dt)."""
+        self._advance(1)
+
     def _tick(self):
-        self.state = self.model.step(self.state, self.dt)
-        self._steps += 1
-        if self.canvas.show_trails and self._steps % 2 == 0:
+        """One timer frame: advance `speed` steps, then draw once."""
+        self._advance(int(self.sim_speed_sb.value()))
+
+    def _advance(self, reps):
+        if self.model is None or self.state is None:
+            return
+        reps = max(1, int(reps))
+        for _ in range(reps):
+            self.state = self.model.step(self.state, self.dt)
+            self._steps += 1
+            # while recording, capture every step so the time series stays
+            # full-resolution regardless of the steps-per-frame speed.
+            if self.recording:
+                m = self._metrics_now()
+                if m is not None:
+                    self._record_step(m)
+        if self.canvas.show_trails:
             self.canvas.push_trail(self.state.positions)
         now = time.perf_counter()
         dt_wall = now - self._last_tick
@@ -623,12 +760,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self._fps = 0.9 * self._fps + 0.1 * (1.0 / dt_wall)
         self._last_tick = now
         self._refresh_canvas()
-        # compute metrics every 3rd frame for display, but every frame while recording
+        # refresh the read-out every few frames (or every frame while recording)
         if self.recording or self._steps % 3 == 0:
-            m = self._metrics_now()
-            self._set_metric_labels(m)
-            if self.recording and m is not None:
-                self._record_step(m)
+            self._set_metric_labels(self._metrics_now())
 
     def _neighbor_info(self):
         if not (self.canvas.show_links or self.canvas.show_cones):

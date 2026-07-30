@@ -14,7 +14,7 @@ how to run it, and every change as it lands.
   rewriting the science core. The engine, model library, and measurements were
   already at or beyond spec; the work is the app layer (init, manager, GUI).
 
-Last updated: **2026-07-27**.
+Last updated: **2026-07-28**.
 
 ---
 
@@ -149,6 +149,48 @@ each with introspected live sliders. Overlays and live metrics toggle in-panel.
 ## 4. Update log
 
 Newest first. Append an entry per increment.
+
+### 2026-07-28 — Visible grouping by default (per-model presets + speed control)
+**Problem** — with the old defaults (Vicsek + **open** boundary, 1 step/frame) the
+app opened on the worst possible case: an alignment-only model that *disperses*
+in open space, advancing so slowly that ordering was invisible in the first few
+seconds. Users read this as "the algorithms don't group."
+
+**Added (in `gui/main_window.py`)**
+- **`MODEL_PRESETS`** — a per-model starting regime applied whenever a model is
+  selected: recommended `boundary`/`init`/`groups` (+ `n`/`L` where needed) and a
+  `params` dict of tuned constructor overrides. Presets are **absolute** (every
+  structural field is reset to a shared baseline first, then overridden), so one
+  model's override never leaks into the next. A status-bar line reports what was
+  set. Suppressed while a saved config loads (`self._loading`), so config
+  reproducibility is unchanged.
+- **`_apply_preset()`**; `_on_model_changed` now widens each slider's range so a
+  preset value beyond `4×default` still fits.
+- **Default model is now Grégoire–Chaté** (`DEFAULT_MODEL`) — a cohesive flock
+  that visibly groups on any boundary — instead of alignment-only Vicsek. Base
+  default boundary changed `open → periodic`.
+- **Speed control** — a *steps/frame* spin box (1–50, default 4). `_tick` now
+  calls `_advance(reps)`, which runs `reps` model steps per displayed frame;
+  **Step** advances exactly one step (`_step_once`). Recording still captures
+  every step (metrics/trajectory stay full-resolution regardless of speed).
+
+**Physics rationale (measured, N=150, 400 steps):** alignment-only models
+(Vicsek/Kuramoto/spin) get a **periodic** box (they disperse in open space);
+cohesive models (Boids/Couzin/Grégoire–Chaté/Cucker–Smale/…) get **open** space
++ a `cluster` start for initial connectivity; D'Orsogna → rotating mill;
+Multi-group → **reflecting** box, 3 segregated flocks; Active Brownian →
+higher Péclet (`v0`↑, `Dr`↓) and density (`N=250, L=7`) so MIPS phase-separates.
+
+**Verified**
+- End-to-end through the real `MainWindow` (select each model via the combo →
+  preset fires → `_advance`): **all 17 group as intended** — Grégoire–Chaté
+  polar order 0.99 / R_g 0.5 (tight flock), Boids 0.96 / R_g 1.6, Cucker–Smale
+  1.00, Couzin 0.51 cohesive swarm, D'Orsogna 0.05 (a single rotating mill),
+  Multi-group largest-cluster-frac 0.33 (three groups), ABP one MIPS cluster.
+  The `n=250` override no longer leaks to later models.
+- `tests/test_gui_smoke.py`: **17/17 step, config round-trip still identical**,
+  exports/GIF/MP4/plot/sweep/3D all pass. Organised default flock rendered to
+  `results/gui_grouping_default.png` (compact blob + coherent trail).
 
 ### 2026-07-28 — In-app explanations (tooltips + model descriptions + Help guide)
 **Added (in `gui/main_window.py`)**
